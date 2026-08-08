@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "browser",
+  "displayName": "Browser — залогиненный Chrome через Playwright MCP",
+  "description": "Playwright MCP в Extension Mode: работа в живом Chrome пользователя (куки, логины, 2FA) + скилл с токен-дисциплиной — лестница чтения вместо авто-снапшотов.",
+  "author": { "name": "Be Cyborg" },
+  "homepage": "https://github.com/beCyborg/claude-desktop-plugins",
+  "repository": "https://github.com/beCyborg/claude-desktop-plugins",
+  "license": "MIT",
+  "keywords": ["browser", "playwright", "chrome", "mcp", "automation"],
+  "userConfig": {
+    "PLAYWRIGHT_MCP_EXTENSION_TOKEN": {
+      "type": "string",
+      "title": "Playwright Extension Token",
+      "description": "Опционально. Токен из UI расширения Playwright Extension (страница статуса) — убирает диалог подтверждения при каждом подключении. Без токена мост тоже работает, но каждый коннект придётся одобрять в браузере.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}
