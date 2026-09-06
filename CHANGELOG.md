@@ -2,6 +2,19 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [1.1.0] — 2026-09-07 — скилл по итогам живого прогона 0.0.80 / skill rewritten from a live 0.0.80 run
+
+### Для человека
+- Скилл переписан по результатам живой проверки моста: авто-reconnect, ловушка перекрытого окна Chrome (клики висят по таймауту), правила записи файлов только в `.playwright-mcp/`, неработающий `file_upload` в extension mode.
+- Рядом со скиллом появились тест-матрица (`TESTS.md`) и файл ловушек моста (`references/gotchas.md`) — «Extension not found» чаще всего означает отсутствие Full Disk Access, а не отсутствие расширения.
+
+### For agents
+- Changed: `plugins/browser/skills/browser/SKILL.md` — перенесён из локальной версии автора; разделы «Подключение и восстановление», «ГЛАВНАЯ ЛОВУШКА: перекрытое окно Chrome», «Файлы», «JS-паттерны», «Параллелизм», «Routing summary»; замеры лестницы чтения; `description` в новом формате Triggers / RU triggers / Do NOT use for.
+- Added: `plugins/browser/skills/browser/TESTS.md` — матрица возможностей моста с датами прогонов и гейтом перед бампом пина.
+- Added: `plugins/browser/skills/browser/references/gotchas.md` — ловушки моста и доступа (Full Disk Access, TCC-контекст tmux).
+- Changed: `plugins/browser/.claude-plugin/plugin.json` — `version` 1.0.1 → 1.1.0.
+- Migration: не требуется; `.mcp.json` не менялся — пин остаётся `@playwright/mcp@0.0.78`, тогда как скилл описывает проверенный вживую 0.0.80 (бамп пина — отдельным решением).
+
 ## [1.0.1] — 2026-09-06 — двуязычный README и гейты передачи / bilingual README and handover gates
 
 ### Для человека
