@@ -2,6 +2,16 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [1.1.1] — 2026-09-07 — пин Playwright MCP 0.0.80 / pin Playwright MCP 0.0.80
+
+### Для человека
+- Плагин ставит ту версию Playwright MCP, на которой мост расширения проверен живьём (0.0.80); на 0.0.78 мост работает по protocol v1.
+
+### For agents
+- Changed: `.mcp.json` — `@playwright/mcp@0.0.78` → `@playwright/mcp@0.0.80`; согласовано с `SKILL.md` и `TESTS.md`, которые уже описывают 0.0.80 и расширение ≥0.3.0 / protocol v2.
+- Changed: `.claude-plugin/plugin.json` — `version` 1.1.0 → 1.1.1.
+- Migration: не требуется.
+
 ## [1.1.0] — 2026-09-07 — скилл по итогам живого прогона 0.0.80 / skill rewritten from a live 0.0.80 run
 
 ### Для человека
