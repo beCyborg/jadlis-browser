@@ -1,14 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "browser",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "displayName": "Browser — залогиненный Chrome через Playwright MCP",
   "description": "Playwright MCP в Extension Mode: работа в живом Chrome пользователя (куки, логины, 2FA) + скилл с токен-дисциплиной — лестница чтения вместо авто-снапшотов.",
-  "author": { "name": "Be Cyborg" },
+  "author": {
+    "name": "Be Cyborg"
+  },
   "homepage": "https://github.com/beCyborg/claude-desktop-plugins",
   "repository": "https://github.com/beCyborg/claude-desktop-plugins",
   "license": "MIT",
-  "keywords": ["browser", "playwright", "chrome", "mcp", "automation"],
+  "keywords": [
+    "browser",
+    "playwright",
+    "chrome",
+    "mcp",
+    "automation"
+  ],
   "userConfig": {
     "PLAYWRIGHT_MCP_EXTENSION_TOKEN": {
       "type": "string",
