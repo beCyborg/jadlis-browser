@@ -29,7 +29,7 @@ The ladder is climbed by price: take the cheapest tool that solves the task; a f
 The plugin installs together with its neighbour — commands are in the [root README](../../README.en.md). On its own:
 
 ```bash
-claude plugin marketplace add https://github.com/beCyborg/jadlis-plugins.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-start.git
 claude plugin install browser@jadlis
 ```
 

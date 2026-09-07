@@ -1,14 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "browser",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "displayName": "Browser — залогиненный Chrome через Playwright MCP",
   "description": "Playwright MCP в Extension Mode: работа в живом Chrome пользователя (куки, логины, 2FA) + скилл с токен-дисциплиной — лестница чтения вместо авто-снапшотов.",
   "author": {
     "name": "Be Cyborg"
   },
-  "homepage": "https://github.com/beCyborg/claude-desktop-plugins",
-  "repository": "https://github.com/beCyborg/claude-desktop-plugins",
+  "homepage": "https://github.com/beCyborg/jadlis-desktop",
+  "repository": "https://github.com/beCyborg/jadlis-desktop",
   "license": "MIT",
   "keywords": [
     "browser",
