@@ -9,7 +9,6 @@
   },
   "homepage": "https://github.com/beCyborg/jadlis-desktop",
   "repository": "https://github.com/beCyborg/jadlis-desktop",
-  "license": "MIT",
   "keywords": [
     "browser",
     "playwright",
