@@ -2,6 +2,18 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [1.1.2] — 2026-09-07 — переименование репо / repo renamed
+
+### Для человека
+- Репо переименовано в `jadlis-desktop`, маркетплейс `jadlis` (`browser@jadlis`, `computer-use@jadlis`); старый адрес редиректит, старые установки продолжают работать.
+
+### For agents
+- Changed: `.claude-plugin/plugin.json` — `version` 1.1.1 → 1.1.2, `homepage`/`repository` → `https://github.com/beCyborg/jadlis-desktop`.
+- Changed: `plugins/browser/README.md`, `plugins/browser/README.en.md`, корневые `README.md`/`README.en.md`, `CLAUDE.md` — установка через `https://github.com/beCyborg/jadlis-start.git` и `browser@jadlis`.
+- Changed: `.github/workflows/` — единый `ci.yml`, вызывает `beCyborg/jadlis-start/.github/workflows/plugin-ci.yml@main` (`mode: marketplace`).
+- Unchanged: `.claude-plugin/marketplace.json` — имя `becyborg-desktop` и записи плагинов сохранены ради уже сделанных установок.
+- Migration: не требуется.
+
 ## [1.1.1] — 2026-09-07 — пин Playwright MCP 0.0.80 / pin Playwright MCP 0.0.80
 
 ### Для человека

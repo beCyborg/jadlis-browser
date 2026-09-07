@@ -29,7 +29,7 @@ flowchart LR
 Плагин ставится вместе с соседним — команды в [корневом README](../../README.md). Отдельно:
 
 ```bash
-claude plugin marketplace add https://github.com/beCyborg/jadlis-plugins.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-start.git
 claude plugin install browser@jadlis
 ```
 
