@@ -10,5 +10,5 @@ jobs:
     uses: beCyborg/jadlis-hub/.github/workflows/plugin-ci.yml@main
     with:
       mode: plugin
-      forbid-mermaid: false
+      forbid-mermaid: true
     secrets: inherit
