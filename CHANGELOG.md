@@ -1,6 +1,24 @@
-# Changelog — browser
+# Changelog — jadlis-browser
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
+
+## [2.0.0] — 2026-09-10 — выделен в отдельное репо `jadlis-browser` / split out into its own repo
+
+### Для человека
+- Плагин переехал из монорепо `jadlis-desktop` в собственное репо и называется теперь `jadlis-browser`: ставится `claude plugin install jadlis-browser@jadlis`, маркетплейс добавляется по адресу `https://github.com/beCyborg/jadlis-hub`.
+- Короткая команда не изменилась — скилл по-прежнему поднимается сам и доступен как `/browser`; полная форма стала `/jadlis-browser:browser`.
+- Совместимости со старым именем нет: старую установку `browser@jadlis` нужно удалить и поставить заново.
+
+### For agents
+- Changed: репо — корень теперь сам плагин (`plugins/browser/` → корень), история сохранена через `git filter-repo`.
+- Changed: `.claude-plugin/plugin.json` — `name` `browser` → `jadlis-browser`, `version` 1.1.2 → 2.0.0, `homepage`/`repository` → `https://github.com/beCyborg/jadlis-browser`.
+- Changed: `skills/browser/SKILL.md` — префикс инструментов `mcp__plugin_browser_playwright__` → `mcp__plugin_jadlis-browser_playwright__`.
+- Changed: `README.md`, `README.en.md` — установка/обновление `jadlis-browser@jadlis`, маркетплейс `https://github.com/beCyborg/jadlis-hub`, ссылка на корневой README монорепо убрана (репо теперь одно), H1 и `/plugin` → `jadlis-browser`, тег схемы `jadlis-browser--v2.0.0`.
+- Fixed: `README.md`, `README.en.md` — пин Playwright MCP в разделе «Границы и стоимость» был `0.0.78`, приведён к фактическому `0.0.80` из `.mcp.json` и `SKILL.md`.
+- Removed: `docs/img/` — картинки принадлежали корневому README монорепо (`hero-jadlis-desktop.webp`, `how-jadlis-desktop.webp`, `hub-12.webp` и промпт к ним); README плагина их не использует.
+- Added: `.github/workflows/ci.yml` — вызов `beCyborg/jadlis-hub/.github/workflows/plugin-ci.yml@main` в режиме `mode: plugin`.
+- Unchanged: `.mcp.json`, `userConfig.PLAYWRIGHT_MCP_EXTENSION_TOKEN`, имена папок скиллов.
+- Migration: `claude plugin uninstall browser@jadlis` → `claude plugin marketplace add https://github.com/beCyborg/jadlis-hub` → `claude plugin install jadlis-browser@jadlis`.
 
 ## [1.1.2] — 2026-09-07 — переименование репо / repo renamed
 
