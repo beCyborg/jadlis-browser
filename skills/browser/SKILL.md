@@ -5,7 +5,7 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 
 Перед работой с мостом прочитать `references/gotchas.md`. Самое дорогое оттуда: **«Extension not found» обычно означает отсутствие Full Disk Access, а не отсутствие расширения** (TCC-контекст держит tmux-сервер).
 
-Управляй реальным Chrome пользователя через мост Playwright MCP Bridge (Extension Mode): работаешь в его существующей сессии — все логины, куки, расширения на месте, без `--remote-debugging-port`. Полные имена инструментов — `mcp__plugin_browser_playwright__browser_*`; ниже короткие `browser_*`. Версия пина: `@playwright/mcp@0.0.80` (сверено вживую 01.09.2026; тест-матрица — `TESTS.md` рядом).
+Управляй реальным Chrome пользователя через мост Playwright MCP Bridge (Extension Mode): работаешь в его существующей сессии — все логины, куки, расширения на месте, без `--remote-debugging-port`. Полные имена инструментов — `mcp__plugin_jadlis-browser_playwright__browser_*`; ниже короткие `browser_*`. Версия пина: `@playwright/mcp@0.0.80` (сверено вживую 01.09.2026; тест-матрица — `TESTS.md` рядом).
 
 ## Среда запуска (учитывать, не менять)
 
@@ -81,7 +81,7 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 4. **Консоль** — `browser_console_messages(level: "error")`. Счётчик «Console: N errors» в каждом ответе часто набит шумом ЧУЖИХ расширений Chrome (`Unchecked runtime.lastError…`) — не считать его сигналом без чтения самих сообщений.
 5. **Тихий провал клика — худший режим отказа**: вызов вернул успех, страница не изменилась, модель мира поехала. После значимого действия проверяй эффект (find/evaluate по ожидаемому изменению), а не только код возврата.
 6. **Длинные flow (5+ шагов)** — субагенту (см. ниже).
-7. **Ошибка параметра** — не гадать: живая схема через ToolSearch `select:mcp__plugin_browser_playwright__<tool>`. Схемы дрейфуют между версиями.
+7. **Ошибка параметра** — не гадать: живая схема через ToolSearch `select:mcp__plugin_jadlis-browser_playwright__<tool>`. Схемы дрейфуют между версиями.
 
 ## Действия
 
