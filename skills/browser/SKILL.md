@@ -23,7 +23,8 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 - **Авто-reconnect работает**: после разрыва (в т.ч. после `browser_close` последней вкладки) следующий вызов сам переоткрывает `connect.html` и соединяется по токену — новый seed-таб «Welcome» это норма, не ошибка.
 - **Подключение крадёт фокус**: активирует таб и окно Chrome (на macOS может переключить Space). «Подключись незаметно» — нельзя (#42343).
 - Если соединения нет совсем, проверь по списку: Chrome запущен? расширение Playwright MCP Bridge (id `mmlmfjhmonkocbjadbfplnigmagldckm`, нужна версия ≥0.3.0 — protocol v2, v1 удалён в 0.0.79) установлено? профиль Chrome тот, где стоит расширение (смена профиля = «висит без ошибки»)? Скажи пользователю, что именно проверить.
-- Осиротевшие `connect.html`-табы после реконнектов можно закрывать руками — они не мешают, но копятся.
+- **Служебную вкладку не использовать под работу.** Сразу после подключения открывай сайт через `browser_tabs(action: "new", url: …)`, а `connect.html` («Welcome») закрывай — `browser_tabs(action: "close", index: 0)`. Мост живёт, пока у него есть хотя бы одна своя вкладка (проверено 13.09.2026: seed-таб закрыт через osascript, сессия продолжила работать). Закрытие ПОСЛЕДНЕЙ вкладки рвёт соединение. Зачем: `browser_navigate` в seed-табе делает точку подключения заложницей сайта — капризный сайт (см. «Сайты-убийцы моста») ронял мост дважды подряд, а в отдельной вкладке тот же сайт открылся с первого раза; плюс сироты `connect.html` после реконнектов не копятся.
+- Осиротевшие `connect.html`-табы от прошлых реконнектов не мешают, но копятся — закрывать руками или через osascript (`tell application "Google Chrome"` … `if URL of t contains "connect.html" then close t`; помеченную рабочую вкладку не трогать).
 
 ## ГЛАВНАЯ ЛОВУШКА: перекрытое окно Chrome
 
@@ -113,7 +114,7 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 ## Безопасность и хрупкость (extension mode)
 
 - **Реальные привилегии пользователя.** Перед send/purchase/delete/submit на залогиненных сервисах — явное подтверждение пользователя.
-- **Сайты-убийцы моста** (детерминированный разрыв: сайт вызывает detach последней вкладки → relay закрывается): dadata.ru, SpyFu `/account`, LinkedIn `/messaging/`. Навигация на `chrome://`-URL тоже рвёт debugger. С 0.0.79 мост сам восстановится следующим вызовом, но состояние страницы потеряно.
+- **Сайты-убийцы моста** (детерминированный разрыв: сайт вызывает detach последней вкладки → relay закрывается): dadata.ru, SpyFu `/account`, LinkedIn `/messaging/`, account.apple.com при первом заходе из seed-таба (13.09.2026: два обрыва подряд, страница уходила в `about:blank`; из новой вкладки открылась сразу — точный триггер не пойман, предположительно редирект на sign-in). Навигация на `chrome://`-URL тоже рвёт debugger. С 0.0.79 мост сам восстановится следующим вызовом, но состояние страницы потеряно.
 - Миф «MV3-воркер рвёт мост каждые 30 с» — опровергнут: при живой прикреплённой вкладке воркер не засыпает.
 - Долгие сессии текут (гигабайты RAM у сервера) — при деградации попросить пользователя сделать `/mcp` → reconnect.
 - После ручного вмешательства пользователя — пере-проверь активную вкладку `browser_tabs(action: "list")`. Чужие вкладки не закрывать.
@@ -132,4 +133,4 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 
 ## Routing summary
 
-Одной строкой, все факты подробно раскрыты выше: extension mode + pin `0.0.80` / bridge ≥0.3.0 (intro), `--snapshot-mode=none` and the read ladder find → evaluate → scoped snapshot («Среда запуска», «Лестница чтения»), screenshots need `filename: ".playwright-mcp/<name>"` («Файлы»), overlapped Chrome window freezes pointer actions («ГЛАВНАЯ ЛОВУШКА»), `browser_run_code_unsafe` = RCE-equivalent, trusted pages only («JS-паттерны»), one MCP connection shared by all subagents of a session — never parallel browser subagents; multi-client only across separate CC sessions («Параллелизм»), `file_upload` broken in extension mode («Файлы»), live tool matrix — `TESTS.md`.
+Одной строкой, все факты подробно раскрыты выше: extension mode + pin `0.0.80` / bridge ≥0.3.0 (intro), work in a NEW tab and close the `connect.html` seed tab right after connecting — never the last owned tab («Подключение»), `--snapshot-mode=none` and the read ladder find → evaluate → scoped snapshot («Среда запуска», «Лестница чтения»), screenshots need `filename: ".playwright-mcp/<name>"` («Файлы»), overlapped Chrome window freezes pointer actions («ГЛАВНАЯ ЛОВУШКА»), `browser_run_code_unsafe` = RCE-equivalent, trusted pages only («JS-паттерны»), one MCP connection shared by all subagents of a session — never parallel browser subagents; multi-client only across separate CC sessions («Параллелизм»), `file_upload` broken in extension mode («Файлы»), live tool matrix — `TESTS.md`.
