@@ -2,6 +2,21 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [2.1.0] — 2026-09-30 — гибрид MCP + Playwright CLI, пин 0.0.83 / hybrid MCP + Playwright CLI, pin 0.0.83
+
+### Для человека
+- Залогиненный Chrome по-прежнему через Playwright MCP — пин поднят с 0.0.80 до 0.0.83 (флаги те же, по changelog ничего не удалено).
+- Свои лендинги и публичные страницы с JS теперь проверяются через `playwright-cli` в фоновых браузерах — несколько сессий параллельно, твой Chrome не трогается.
+- Новое правило: к Chrome через расширение подключается только один клиент за раз — два клиента 30.09 повесили Chrome.
+
+### For agents
+- Changed: pin `@playwright/mcp@0.0.80` → `0.0.83` in `skills/browser/SKILL.md`, `TESTS.md` (matrix still from the 0.0.80 run — re-run the gate), `README.md`, `README.en.md`; `.mcp.json` (the personal build without `.mcp.json` keeps its live pin in `~/.claude/agents/browser-operator.md`). 0.0.81–0.0.83: `--profile-dir-name`, headless `--idle-timeout` 1 h, token connect fails after 30 s instead of hanging, `browser_emulate_media` (25th core tool), WebMCP tools as `webmcp_<tool>`, `--file-paths=absolute`, `browser_find filename` (#42077). `--extension --snapshot-mode=none --console-level=error --image-responses=omit --output-dir` unchanged in `--help`.
+- Added: `skills/browser/SKILL.md` section «Hybrid: MCP bridge or headless CLI» — logged-in/forms/social/phone → MCP, strictly one extension client; own landings and public JS pages → `playwright-cli -s=<name>` headless, parallel sessions OK.
+- Added: `skills/browser/references/cli.md` — `@playwright/cli` 0.1.22 reference (sessions, recipes, gotchas: same-session race, false click error on navigation >5 s, `attach --extension=chrome` since the bare flag is broken, token redaction, no auto-reconnect).
+- Changed: `SKILL.md` «Параллелизм», «Безопасность», «Когда НЕ использовать», routing summary, description — two extension clients hang Chrome; never print the `connect.html?…token=` URL; Immersive Translate overlay → JS click; slow navigation → verify before retrying.
+- Changed: `.claude-plugin/plugin.json` — `version` → 2.1.0.
+- Migration: none; `@playwright/cli@0.1.22` installed globally with npm (uses system Chrome headless, no `install-browser`).
+
 ## [2.0.0] — 2026-09-10 — выделен в отдельное репо `jadlis-browser` / split out into its own repo
 
 ### Для человека

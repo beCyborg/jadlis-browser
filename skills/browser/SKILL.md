@@ -1,11 +1,22 @@
 ---
 name: browser
-description: "Drives the user's logged-in Chrome via Playwright MCP (extension mode): cookies, logins, 2FA; one linear flow per session. Triggers: use my browser, open in Chrome, on the logged-in site, click through the page. RU triggers: в моём браузере, через браузер, открой в браузере, в Chrome, на залогиненном сайте. Do NOT use for: web search → /search; public scraping → Firecrawl; desktop → /computer-use."
+description: "Drives the user's logged-in Chrome via Playwright MCP (extension mode, one client at a time): cookies, logins, 2FA, forms; own landing pages and public JS pages via headless playwright-cli in parallel named sessions. Triggers: use my browser, open in Chrome, on the logged-in site, click through the page, check my landing in a browser. RU triggers: в моём браузере, через браузер, открой в браузере, в Chrome, на залогиненном сайте, проверь лендинг в браузере. Do NOT use for: web search → /search; plain public scraping → Firecrawl; desktop → /computer-use."
 ---
 
-Перед работой с мостом прочитать `references/gotchas.md`. Самое дорогое оттуда: **«Extension not found» обычно означает отсутствие Full Disk Access, а не отсутствие расширения** (TCC-контекст держит tmux-сервер).
+Перед работой с мостом прочитать `references/gotchas.md`. Самое дорогое оттуда: **«Extension not found» обычно означает отсутствие Full Disk Access, а не отсутствие расширения** (TCC-контекст держит tmux-сервер). Headless-ветка на `playwright-cli` — `references/cli.md`.
 
-Управляй реальным Chrome пользователя через мост Playwright MCP Bridge (Extension Mode): работаешь в его существующей сессии — все логины, куки, расширения на месте, без `--remote-debugging-port`. Полные имена инструментов — `mcp__plugin_jadlis-browser_playwright__browser_*`; ниже короткие `browser_*`. Версия пина: `@playwright/mcp@0.0.80` (сверено вживую 01.09.2026; тест-матрица — `TESTS.md` рядом).
+Управляй реальным Chrome пользователя через мост Playwright MCP Bridge (Extension Mode): работаешь в его существующей сессии — все логины, куки, расширения на месте, без `--remote-debugging-port`. Полные имена инструментов — `mcp__plugin_jadlis-browser_playwright__browser_*`; ниже короткие `browser_*`. Версия пина: `@playwright/mcp@0.0.83` (поднят с 0.0.80 30.09.2026 после сверки changelog 0.0.81–0.0.83 и `--help`: флаги те же; полная живая матрица — на 0.0.80, 01.09.2026, `TESTS.md` рядом).
+
+## Hybrid: MCP bridge or headless CLI
+
+| Task | Tool | Why |
+|---|---|---|
+| Logins, forms, SaaS panels, social sites, runs started from the phone | **Playwright MCP, extension mode** (this skill) | `fill_form`, `wait_for`, auto-reconnect, real cookies |
+| Own landing pages (screenshots, `--mobile`, dark mode, console, network), public pages that need JS rendering | **`playwright-cli` headless** via Bash, named sessions `-s=<name>` — `references/cli.md` | own browser per session, never touches the user's Chrome, parallel sessions OK |
+| Plain public text | Firecrawl / the /search page ladder | no browser needed |
+
+- **Strictly ONE extension client at a time** — one MCP bridge, or one `playwright-cli attach --extension=chrome`, never two. Two extension clients hung the user's Chrome on 30.09.2026 (AppleEvents timed out, `tab-new` hung >110 s); the next attach relaunched Chrome and killed the hung one — a window with the user's tabs was lost.
+- CLI parallelism is across sessions only: two commands into the same session race (`Execution context was destroyed`).
 
 ## Среда запуска (учитывать, не менять)
 
@@ -13,7 +24,7 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 
 - **`--snapshot-mode=none`** — снапшот НЕ возвращается после click/navigate/wait_for (проверено: `wait_for` в этом режиме отдаёт ~250 байт, а не 20K как при дефолте). После действия ты «слеп», пока явно не позовёшь `browser_find`/`browser_snapshot`. Это токен-экономия (~114K на задачу с авто-снапшотами против ~27K без).
 - **`--image-responses=omit`** — base64 скриншота НЕ приходит. Скриншот ВСЕГДА с `filename`, затем Read. В 0.0.80 скриншоты не даунскейлятся под лимиты модели — без `filename` было бы ещё дороже.
-- **`--caps` не задан** — только core-набор из 24 инструментов. `browser_run_code_unsafe` — тоже core (включён). Opt-in `--caps=devtools` добавил бы 13: recording (агент записывает ручные действия пользователя как Playwright-код), tracing, video, highlight, annotate, resume — не включаем, пока нет задачи «покажи мне поток руками».
+- **`--caps` не задан** — только core-набор из 25 инструментов (0.0.83; 25-й — `browser_emulate_media` с 0.0.82: `colorScheme`, `reducedMotion`, `media` на лету). `browser_run_code_unsafe` — тоже core (включён). Opt-in `--caps=devtools` добавил бы 13: recording (агент записывает ручные действия пользователя как Playwright-код), tracing, video, highlight, annotate, resume — не включаем, пока нет задачи «покажи мне поток руками».
 - **Токен в env** — критичен: с 0.0.79 авто-reconnect после разрыва моста бесшовный ТОЛЬКО при токене (иначе ручной «Allow» на каждое восстановление).
 
 ## Подключение и восстановление
@@ -44,7 +55,7 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 
 Всегда бери самый дешёвый инструмент, который решает задачу. Замеры на живой 0.0.80 (страница средней плотности): find ~0,7K < scoped snapshot ~1,2K < full snapshot ~6K < snapshot+boxes ~8,6K (+43%).
 
-1. **`browser_find`** — grep по accessibility-дереву, возвращает совпавшие узлы с ref'ами. `text` (подстрока, регистронезависимо) ИЛИ `regex` (`"/error/i"`) — не оба. Ограничений размера нет: на глубоких DOM тянет всю цепочку предков (#42077) — если вывод разросся, переходи на evaluate с CSS-селектором.
+1. **`browser_find`** — grep по accessibility-дереву, возвращает совпавшие узлы с ref'ами. `text` (подстрока, регистронезависимо) ИЛИ `regex` (`"/error/i"`) — не оба. На глубоких DOM тянет всю цепочку предков (#42077) — с 0.0.83 есть `filename` (совпадения уходят в файл, не в ответ); иначе переходи на evaluate с CSS-селектором.
    ```
    browser_find(text: "Checkout")
    browser_find(regex: "/итого|total/i")
@@ -108,13 +119,17 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 ## Параллелизм
 
 - **Внутри одной сессии Claude Code браузер один**: все субагенты делят одно MCP-подключение (один клиент, одна tab group, общий «активный таб»). Параллельные браузерные субагенты запрещены — только линейный flow.
-- Extension-мост штатно держит **несколько клиентов** (разные сессии CC): у каждого своя цветная tab group, таб принадлежит одному клиенту; перетаскивание таба между группами меняет доступ; status-страница расширения показывает и рвёт подключения по одному.
-- Для параллельной работы с ПУБЛИЧНЫМИ сайтами есть паттерн «второй сервер без `--extension`, с `--isolated`» рядом с extension-сервером — рабочий, но в конфиге не поднят; предлагать пользователю только при реальной нужде в параллели.
+- Extension-мост умеет **несколько клиентов** (разные сессии CC): у каждого своя цветная tab group, таб принадлежит одному клиенту; status-страница расширения показывает и рвёт подключения по одному. **But do not use it:** two clients creating tabs at once hung Chrome on 30.09.2026 (CLI pilot; MCP goes through the same relay — assumed at risk). One extension client at a time, across all CC sessions.
+- Parallel work on PUBLIC sites → `playwright-cli` headless sessions (`references/cli.md`), not a second MCP server.
 
 ## Безопасность и хрупкость (extension mode)
 
 - **Реальные привилегии пользователя.** Перед send/purchase/delete/submit на залогиненных сервисах — явное подтверждение пользователя.
 - **Сайты-убийцы моста** (детерминированный разрыв: сайт вызывает detach последней вкладки → relay закрывается): dadata.ru, SpyFu `/account`, LinkedIn `/messaging/`, account.apple.com при первом заходе из seed-таба (13.09.2026: два обрыва подряд, страница уходила в `about:blank`; из новой вкладки открылась сразу — точный триггер не пойман, предположительно редирект на sign-in). Навигация на `chrome://`-URL тоже рвёт debugger. С 0.0.79 мост сам восстановится следующим вызовом, но состояние страницы потеряно.
+- **Never print the extension token.** The seed tab URL `connect.html?…&token=…` shows up in `browser_tabs(action: "list")` (and in every CLI «Open tabs» listing) — it is a secret: close the seed tab right after connecting, and redact it (`token=<redacted>`) before it reaches a log, report or memory note.
+- **An extension overlay eats clicks**: `<div id="immersive-translate-image-tools"> intercepts pointer events` (Immersive Translate) — raising the window does not help; on a trusted page click via JS (`browser_evaluate(function: "(el) => el.click()", target: "e13")`).
+- **False click error on slow navigation**: a click that starts a navigation longer than 5 s can return a timeout (`waiting for scheduled navigations to finish`) although the click went through. Verify with `browser_find` / `browser_snapshot` / `location.href` before retrying — a retry can double-submit a form.
+- If Chrome itself hangs (AppleEvents time out), do not attach again — a new attach relaunches Chrome and kills the hung instance with the user's windows; report `BLOCKED` and let the user decide.
 - Миф «MV3-воркер рвёт мост каждые 30 с» — опровергнут: при живой прикреплённой вкладке воркер не засыпает.
 - Долгие сессии текут (гигабайты RAM у сервера) — при деградации попросить пользователя сделать `/mcp` → reconnect.
 - После ручного вмешательства пользователя — пере-проверь активную вкладку `browser_tabs(action: "list")`. Чужие вкладки не закрывать.
@@ -127,10 +142,10 @@ description: "Drives the user's logged-in Chrome via Playwright MCP (extension m
 
 - **Веб-поиск** → skill /search.
 - **Скрапинг публичного сайта без логина** → `mcp__firecrawl__firecrawl_scrape` или /web-scrape.
-- **Тесты/прогон своего приложения** → Playwright-скрипт через Bash (официальная рекомендация Playwright для кодинг-агентов: CLI/скрипты токен-дешевле; MCP оставлен ровно для нашего кейса — живой залогиненный браузер).
+- **Own landing pages, public JS pages, test runs of own apps** → `playwright-cli` headless (`references/cli.md`) or a Playwright script via Bash; MCP stays for exactly our case — the live logged-in browser.
 - **Ресёрч по соцсетям** → /full-research.
 - **Native desktop приложения** → /computer-use.
 
 ## Routing summary
 
-Одной строкой, все факты подробно раскрыты выше: extension mode + pin `0.0.80` / bridge ≥0.3.0 (intro), work in a NEW tab and close the `connect.html` seed tab right after connecting — never the last owned tab («Подключение»), `--snapshot-mode=none` and the read ladder find → evaluate → scoped snapshot («Среда запуска», «Лестница чтения»), screenshots need `filename: ".playwright-mcp/<name>"` («Файлы»), overlapped Chrome window freezes pointer actions («ГЛАВНАЯ ЛОВУШКА»), `browser_run_code_unsafe` = RCE-equivalent, trusted pages only («JS-паттерны»), one MCP connection shared by all subagents of a session — never parallel browser subagents; multi-client only across separate CC sessions («Параллелизм»), `file_upload` broken in extension mode («Файлы»), live tool matrix — `TESTS.md`.
+Одной строкой, все факты подробно раскрыты выше: extension mode + pin `0.0.83` / bridge ≥0.3.0 (intro), hybrid — logged-in → MCP, strictly one extension client; own landings/public JS pages → headless `playwright-cli -s=<name>`, parallel OK (`references/cli.md`) («Hybrid»), work in a NEW tab and close the `connect.html` seed tab right after connecting — never the last owned tab («Подключение»), `--snapshot-mode=none` and the read ladder find → evaluate → scoped snapshot («Среда запуска», «Лестница чтения»), screenshots need `filename: ".playwright-mcp/<name>"` («Файлы»), overlapped Chrome window freezes pointer actions («ГЛАВНАЯ ЛОВУШКА»), `browser_run_code_unsafe` = RCE-equivalent, trusted pages only («JS-паттерны»), one MCP connection shared by all subagents of a session — never parallel browser subagents; no second extension client anywhere — two hung Chrome («Параллелизм»), extension token never printed, overlay click → JS click, slow-navigation false click error → verify («Безопасность»), `file_upload` broken in extension mode («Файлы»), live tool matrix — `TESTS.md`.

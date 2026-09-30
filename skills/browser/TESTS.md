@@ -1,6 +1,6 @@
 # TESTS.md — browser (Playwright MCP Extension Mode)
 
-Живая зависимость: `@playwright/mcp@0.0.80` + Chrome + расширение Playwright MCP Bridge ≥0.3.0 (protocol v2).
+Живая зависимость: `@playwright/mcp@0.0.83` (пин поднят 30.09.2026; матрица ниже прогнана на 0.0.80 — перепрогнать гейт на 0.0.83) + Chrome + расширение Playwright MCP Bridge ≥0.3.0 (protocol v2).
 Последний полный прогон: 2026-09-01, локальная тест-страница + read-only GitHub.
 
 | Capability | State | Last run | Notes |

@@ -43,7 +43,7 @@ In words: task behind a login → bridge to the open browser → reading ladder 
 confirmation → verification by the live state.
 
 The plugin installs two things: the `playwright` MCP server and the skill. The runtime is pinned in
-the repository's `.mcp.json`: the `@playwright/mcp@0.0.80` pin and four flags — `--extension`,
+the repository's `.mcp.json`: the `@playwright/mcp@0.0.83` pin and four flags — `--extension`,
 `--snapshot-mode=none`, `--console-level=error`, `--image-responses=omit`. The consequences show up immediately: after a click
 or a navigation the agent is blind until it asks for a read itself; no base64 screenshot arrives;
 only the core tool set is on.
@@ -129,7 +129,7 @@ reading the page, not the model. A full snapshot of an unfamiliar structure and 
 more than the rest, which is why both sit at the bottom of the ladder.
 
 **Verified where I work:** my Mac, my Chrome. The `@playwright/mcp@0.0.80` and bridge-extension pair
-was run through the `skills/browser/TESTS.md` matrix on 2026-09-01. Verified on macOS only; about
+was run through the `skills/browser/TESTS.md` matrix on 2026-09-01; the pin moved to 0.0.83 on 2026-09-30. Verified on macOS only; about
 other systems I have nothing to say.
 
 **Terms of use.** There is no license: all rights reserved by the author. You may read it and use it
