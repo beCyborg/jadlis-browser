@@ -1,14 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "jadlis-browser",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "displayName": "Browser — залогиненный Chrome через Playwright MCP",
   "description": "Playwright MCP в Extension Mode: работа в живом Chrome пользователя (куки, логины, 2FA) + скилл с токен-дисциплиной — лестница чтения вместо авто-снапшотов.",
   "author": {
     "name": "Be Cyborg"
   },
-  "homepage": "https://github.com/beCyborg/jadlis-browser",
-  "repository": "https://github.com/beCyborg/jadlis-browser",
+  "homepage": "https://gitlab.com/beCyborg/jadlis-browser",
+  "repository": "https://gitlab.com/beCyborg/jadlis-browser",
   "keywords": [
     "browser",
     "playwright",

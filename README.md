@@ -7,7 +7,7 @@
 читает по лестнице — от точечного поиска по дереву до полного снимка последним.
 
 ```
-claude plugin marketplace add https://github.com/beCyborg/jadlis-hub
+claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 ```
 
@@ -66,7 +66,7 @@ core-набор инструментов.
 ```
 Ты — установщик. Поставь на этот Mac плагин jadlis-browser из маркетплейса jadlis.
 Выполни ровно эти команды, дословно, ничего не сокращая:
-1. claude plugin marketplace add https://github.com/beCyborg/jadlis-hub
+1. claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — покажи мне строку про jadlis-browser и его версию.
 Потом скажи мне одной строкой: поставить в Chrome расширение Playwright MCP Bridge
@@ -81,7 +81,7 @@ core-набор инструментов.
 **б) Команды руками.**
 
 ```
-claude plugin marketplace add https://github.com/beCyborg/jadlis-hub
+claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 claude plugin list
 ```
