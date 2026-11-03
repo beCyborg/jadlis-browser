@@ -1,0 +1,154 @@
+#!/bin/bash
+# agent-chrome.sh — the agent's own Chrome profiles with a CDP port on 127.0.0.1 (jadlis-browser).
+#   Install: copy this file and agent-chrome-cdp.mjs to ~/.claude/scripts/, chmod +x both.
+#   Profiles and ports come from ~/.config/jadlis/agent-chrome.conf (AGENT_CHROME_CONF overrides), one `name=port`
+#   per line. No config file → one built-in profile `agent=9333`.
+#   Default profile (no profile argument): BROWSER_PROFILE from ~/.config/jadlis/agent.conf, else `agent`.
+#   Each profile is a separate Chrome instance with its own data dir under
+#   ~/Library/Application Support/Jadlis Agent Chrome/<profile>; the user's own Chrome is never touched.
+# Usage: agent-chrome.sh {ensure|status|stop|window [url]|open|idle-stop} [profile]
+#        agent-chrome.sh profile    print the default profile
+#        agent-chrome.sh profiles   print the configured profiles as name=port
+#        agent-chrome.sh --help
+#   ensure     start if not running, wait for the port, heal discarded/crashed tabs; "clients" = other operators connected now
+#   status     port, tabs, healed tabs (heals like ensure, never starts Chrome)
+#   stop       Browser.close over CDP (Chrome flushes cookies), kill only as fallback
+#   window     open a background window for a parallel operator, print its targetId
+#   open       ensure + bring the profile's window to the front for manual work (log in by hand);
+#              holds idle-stop for HOLD_MIN (120) min
+#   idle-stop  stop the profile when no CDP client was connected for IDLE_MIN (30) minutes and no live `open` hold is set;
+#              optional — run it every few minutes from launchd or cron to free memory
+# Needs: macOS, Google Chrome, Node.js 22+ (global WebSocket). Binary paths are resolved explicitly: launchd gives a minimal PATH.
+set -u
+
+USAGE="usage: agent-chrome.sh {ensure|status|stop|window [url]|open|idle-stop} [profile]
+       agent-chrome.sh {profile|profiles|--help}"
+
+CMD=${1:-}
+case "$CMD" in
+  -h|--help|help) echo "$USAGE"; exit 0 ;;
+  '') echo "$USAGE" >&2; exit 64 ;;
+esac
+
+CURL=/usr/bin/curl
+OPEN=/usr/bin/open
+LSOF=/usr/sbin/lsof
+NODE=${AGENT_CHROME_NODE:-}
+if [ -z "$NODE" ]; then
+  for n in "$(command -v node 2>/dev/null)" /opt/homebrew/bin/node /usr/local/bin/node; do
+    [ -n "$n" ] && [ -x "$n" ] && { NODE=$n; break; }
+  done
+fi
+HELPER=${AGENT_CHROME_HELPER:-"$(cd "$(dirname "$0")" && pwd)/agent-chrome-cdp.mjs"}
+ROOT="$HOME/Library/Application Support/Jadlis Agent Chrome"
+STATE="$ROOT/.state"
+LOG="$HOME/.claude/logs/agent-chrome.log"
+IDLE_MIN=${AGENT_CHROME_IDLE_MIN:-30}
+HOLD_MIN=${AGENT_CHROME_HOLD_MIN:-120}
+CONF=${AGENT_CHROME_CONF:-$HOME/.config/jadlis/agent-chrome.conf}
+AGENT_CONF=${JADLIS_AGENT_CONF:-$HOME/.config/jadlis/agent.conf}
+
+# name=port lines of the profile config, comments and blanks dropped; built-in default when the file is missing.
+profiles() {
+  if [ -r "$CONF" ]; then
+    awk -F= '$0 !~ /^[[:space:]]*#/ && NF == 2 { gsub(/[[:space:]]/, ""); if ($1 != "") print $1 "=" $2 }' "$CONF"
+  else
+    echo "agent=9333"
+  fi
+}
+default_profile() {
+  local p=""
+  [ -r "$AGENT_CONF" ] && p=$(awk -F= '$1 == "BROWSER_PROFILE" { sub(/^[^=]*=/, ""); gsub(/["\047[:space:]]/, ""); print; exit }' "$AGENT_CONF")
+  echo "${p:-agent}"
+}
+
+case "$CMD" in
+  profile) default_profile; exit 0 ;;
+  profiles) profiles; exit 0 ;;
+esac
+
+P=${2:-$(default_profile)}; ARG=${3:-}
+case "$P" in
+  *[!a-z0-9_-]*) echo "agent-chrome.sh: bad profile name: $P" >&2; exit 64 ;;
+esac
+PORT=$(profiles | awk -F= -v p="$P" '$1 == p { print $2; exit }')
+if [ -z "$PORT" ]; then
+  known=$(profiles | cut -d= -f1 | paste -sd ' ' -)
+  echo "agent-chrome.sh: unknown profile '$P' — known: ${known:-none} (config: $CONF)" >&2; exit 64
+fi
+case "$PORT" in
+  ''|*[!0-9]*) echo "agent-chrome.sh: bad port '$PORT' for profile '$P' in $CONF" >&2; exit 78 ;;
+esac
+DIR="$ROOT/$P"
+
+case "$CMD" in
+  ensure|status|stop|window|open|idle-stop) ;;
+  *) echo "$USAGE" >&2; exit 64 ;;
+esac
+if [ -z "$NODE" ]; then echo '{"ok":false,"error":"node not found — install Node.js 22+ or set AGENT_CHROME_NODE"}'; exit 69; fi
+if [ ! -r "$HELPER" ]; then echo "{\"ok\":false,\"error\":\"helper not found: $HELPER — copy agent-chrome-cdp.mjs next to agent-chrome.sh\"}"; exit 69; fi
+mkdir -p "$STATE" "$(dirname "$LOG")"
+
+log() { printf '%s %s %s\n' "$(date '+%F %T')" "$P" "$*" >> "$LOG"; }
+alive() { $CURL -s -m 2 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; }
+main_pid() { /usr/bin/pgrep -o -f -- "--user-data-dir=$DIR" 2>/dev/null; }
+lease() { touch "$STATE/$P.lease"; }
+# CDP clients other than Chrome itself — each running operator's Playwright MCP keeps one websocket open.
+clients() { $LSOF -nP -iTCP:$PORT -sTCP:ESTABLISHED 2>/dev/null | awk 'NR>1 && $1 !~ /Google/ {print $2}' | sort -u | wc -l | tr -d ' '; }
+
+start() {
+  mkdir -p "$DIR"
+  $OPEN -g -n -a "Google Chrome" --args \
+    --user-data-dir="$DIR" --remote-debugging-port=$PORT \
+    --no-first-run --no-default-browser-check \
+    --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling
+  for _ in $(seq 1 60); do alive && return 0; sleep 0.5; done
+  return 1
+}
+
+case "$CMD" in
+  ensure)
+    if ! alive; then
+      if [ -n "$(main_pid)" ]; then
+        echo "{\"ok\":false,\"error\":\"Chrome for $P runs (pid $(main_pid)) but port $PORT does not answer — run: agent-chrome.sh stop $P\"}"
+        log "ensure: process without port"; exit 1
+      fi
+      log "start"
+      start || { echo "{\"ok\":false,\"error\":\"port $PORT did not come up in 30 s\"}"; log "start failed"; exit 1; }
+    fi
+    lease; n=$(clients)
+    out=$("$NODE" "$HELPER" $PORT heal | sed "s/^{/{\"profile\":\"$P\",\"clients\":$n,/"); rc=${PIPESTATUS[0]}
+    echo "$out"; log "ensure $out"; exit $rc ;;
+  status)
+    if ! alive; then echo "{\"ok\":false,\"profile\":\"$P\",\"running\":false,\"port\":$PORT,\"pid\":\"$(main_pid)\"}"; exit 1; fi
+    n=$(clients)
+    out=$("$NODE" "$HELPER" $PORT heal); rc=$?
+    echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),/"; exit $rc ;;
+  window)
+    alive || { echo "{\"ok\":false,\"error\":\"not running — run: agent-chrome.sh ensure $P\"}"; exit 1; }
+    lease
+    "$NODE" "$HELPER" $PORT window "$ARG" ;;
+  open)
+    "$0" ensure "$P" >/dev/null || exit 1
+    touch "$STATE/$P.hold"; log "open (hold)"
+    "$NODE" "$HELPER" $PORT front ;;
+  stop)
+    rm -f "$STATE/$P.hold" "$STATE/$P.lease"
+    if alive; then "$NODE" "$HELPER" $PORT close >/dev/null; fi
+    for _ in $(seq 1 30); do [ -z "$(main_pid)" ] && { echo '{"ok":true,"stopped":"cdp"}'; log "stop cdp"; exit 0; }; sleep 0.5; done
+    pid=$(main_pid)
+    if [ -n "$pid" ]; then kill "$pid"; sleep 3; [ -n "$(main_pid)" ] && kill -9 "$(main_pid)"; log "stop kill $pid"; echo "{\"ok\":true,\"stopped\":\"kill\"}"; exit 0; fi
+    echo '{"ok":true,"stopped":"not running"}' ;;
+  idle-stop)
+    alive || exit 0
+    # An `open` hold keeps the profile up for manual work, but expires after HOLD_MIN minutes.
+    if [ -e "$STATE/$P.hold" ]; then
+      hage=$(( ( $(date +%s) - $(/usr/bin/stat -f %m "$STATE/$P.hold") ) / 60 ))
+      [ "$hage" -lt "$HOLD_MIN" ] && exit 0
+      rm -f "$STATE/$P.hold"; lease; log "hold expired after ${hage} min"; exit 0
+    fi
+    # A connected Playwright MCP client keeps a websocket to the port open for the whole agent run.
+    if [ "$(clients)" -gt 0 ] || [ ! -e "$STATE/$P.lease" ]; then lease; exit 0; fi
+    age=$(( ( $(date +%s) - $(/usr/bin/stat -f %m "$STATE/$P.lease") ) / 60 ))
+    if [ "$age" -ge "$IDLE_MIN" ]; then log "idle ${age} min — stop"; "$0" stop "$P" >/dev/null; fi ;;
+esac

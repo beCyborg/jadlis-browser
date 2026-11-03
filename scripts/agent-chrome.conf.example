@@ -1,0 +1,6 @@
+# agent-chrome.sh profiles: one name=port line each (CDP on 127.0.0.1).
+# Copy to ~/.config/jadlis/agent-chrome.conf. Without this file agent-chrome.sh knows one profile: agent=9333.
+# Another profile: add a line here AND a matching pw-<name> server (same port) in ~/.claude/agents/browser-operator.md.
+# The default profile is BROWSER_PROFILE in ~/.config/jadlis/agent.conf (or `agent`).
+agent=9333
+# work=9334

@@ -1,6 +1,6 @@
 # browser — Playwright CLI (`playwright-cli`) reference
 
-Headless branch of the hybrid: own browser, no cookies, never the user's Chrome. For own landing pages (screenshots, mobile width, dark mode, console, network) and public pages that need JS rendering. Logged-in work stays on the MCP bridge (SKILL.md).
+Headless branch of the hybrid: own browser, no cookies, never the user's Chrome. For own landing pages (screenshots, mobile width, dark mode, console, network) and public pages that need JS rendering. Logged-in work stays on Playwright MCP — the agent's Chrome profiles or the bridge (SKILL.md).
 
 Checked live: `@playwright/cli` 0.1.22 (npm global, `playwright-core` 1.64.0-alpha), macOS, 30.09.2026 — pilot (`attach`, parallel sessions, extension incident) and a smoke of two parallel headless sessions.
 
@@ -13,7 +13,7 @@ Checked live: `@playwright/cli` 0.1.22 (npm global, `playwright-core` 1.64.0-alp
 
 ## Working directory
 
-The CLI writes `.playwright-cli/page-*.yml` (auto-snapshots) and every relative `--filename` into **cwd**. Run it from a scratch dir outside any repo or the vault — the operator uses `/Users/cyborg/.claude/operator-runs/playwright-files/cli-<slug>/`.
+The CLI writes `.playwright-cli/page-*.yml` (auto-snapshots) and every relative `--filename` into **cwd**. Run it from a scratch dir outside any repo or the vault — the operator uses `~/.claude/operator-runs/playwright-files/cli-<slug>/`.
 
 ## Recipes
 

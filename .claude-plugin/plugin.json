@@ -1,9 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "jadlis-browser",
-  "version": "2.1.1",
-  "displayName": "Browser — залогиненный Chrome через Playwright MCP",
-  "description": "Playwright MCP в Extension Mode: работа в живом Chrome пользователя (куки, логины, 2FA) + скилл с токен-дисциплиной — лестница чтения вместо авто-снапшотов.",
+  "version": "3.0.2",
+  "displayName": "Browser — Chrome агента и твой Chrome через Playwright MCP",
+  "description": "Скилл, шаблон агента browser-operator и скрипт agent-chrome.sh: свой профиль Chrome агента по CDP-порту — в фоне, параллельно, с загрузкой файлов; твой Chrome через мост расширения — запасной путь; фоновый playwright-cli для публичных страниц.",
   "author": {
     "name": "Be Cyborg"
   },
@@ -15,14 +15,5 @@
     "chrome",
     "mcp",
     "automation"
-  ],
-  "userConfig": {
-    "PLAYWRIGHT_MCP_EXTENSION_TOKEN": {
-      "type": "string",
-      "title": "Playwright Extension Token",
-      "description": "Опционально. Токен из UI расширения Playwright Extension (страница статуса) — убирает диалог подтверждения при каждом подключении. Без токена мост тоже работает, но каждый коннект придётся одобрять в браузере.",
-      "sensitive": true,
-      "required": false
-    }
-  }
+  ]
 }

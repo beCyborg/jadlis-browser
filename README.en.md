@@ -1,17 +1,20 @@
-English · [Русский](README.md)
+[Русский](README.md) · English
 
 # Half of the work sits behind your login, and the agent sees exactly what is open to everyone
 
-`jadlis-browser` connects to the Chrome you are already sitting in: logins, cookies and 2FA stay
-where they are, no second profile and no `--remote-debugging-port`, and the skill reads a page by
-a ladder — from a pinpoint search over the tree up to a full snapshot, which comes last.
+`jadlis-browser` is the skill for the `browser-operator` agent. The agent works in three browsers:
+a Chrome profile of its own (`agent`, more profiles if you want), your Chrome through a bridge
+extension when nothing else will do, and a windowless background Chrome for public pages. Its own
+profile works in the background, uploads files and holds several agents at once. The skill reads a page by a ladder — from a pinpoint search over the tree up to a full
+snapshot, which comes last.
 
 ```
 claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 ```
 
-No keys needed, but a bridge extension inside Chrome is: you install it yourself, from the Chrome Web Store.
+No keys needed. Besides the skill, the plugin carries a template of the `browser-operator` agent and
+the `agent-chrome.sh` script. You put them in place once by hand: see "Installing and the first run".
 
 ![The browser you are already signed into, and the data pulled out of it](docs/img/hero-jadlis-browser.webp)
 
@@ -25,40 +28,64 @@ This is my workbench published as it is, not a product: whatever I stopped using
 
 | By hand | With an AI chat | With this plugin |
 |---|---|---|
-| **How the agent reaches a closed page.** You copy pieces of your account page into the chat yourself. | A public address it will fetch; behind a login it sees the sign-in form. | The work happens inside the Chrome you already have open, through a bridge extension: the session, the cookies and 2FA stay yours, and no separate profile is created. |
-| **What it costs to see the page.** You look with your eyes — the agent sees nothing. | You paste the whole page text and pay for it in context. | The server runs with `--snapshot-mode=none`: no page snapshot arrives on its own after an action, and the skill climbs a ladder — tree search, a JS expression, a scoped snapshot, and a full snapshot last. |
-| **What happens to screenshots.** You take them yourself and attach them. | The image goes into the thread whole and stays there. | The `--image-responses=omit` flag: a screenshot is always written to a file under `.playwright-mcp/` and read from disk when it is genuinely needed. |
-| **An irreversible action on your account.** You press it yourself and own it. | It presses nothing: it has no session of yours. | The agent acts under your logins and asks you before sending, buying or deleting. That is a rule in the prompt, not a technical block. |
-| **A click that silently did nothing.** You see it on screen and repeat it. | — | After a meaningful action the effect is checked, not the return code; the occluded-Chrome-window trap, where pointer actions hang while reading keeps working, is written down separately. |
+| **How the agent reaches a closed page.** You copy pieces of your account page into the chat yourself. | A public address it will fetch; behind a login it sees the sign-in form. | The agent works in its own Chrome: profile `agent` is a separate Chrome instance with its own data folder. You log into the sites you need there once by hand. Your own Chrome through the bridge is the fallback. |
+| **Your screen while the agent works.** Only you work at the computer. | — | In its own profiles the agent works in background windows and does not take focus. The bridge, by contrast, raises your Chrome on every connect. |
+| **What it costs to see the page.** You look with your eyes — the agent sees nothing. | You paste the whole page text and pay for it in context. | The servers run with `--snapshot-mode=none`: no page snapshot arrives on its own after an action. The agent first takes data from the site's own API — a `fetch` from inside the page. Where there is no API, it climbs a ladder: tree search, a JS expression, a scoped snapshot, and a full snapshot last. |
+| **What happens to screenshots.** You take them yourself and attach them. | The image goes into the thread whole and stays there. | The `--image-responses=omit` flag: a screenshot is always written to a file under `~/.claude/operator-runs/playwright-files/` and read from disk when it is genuinely needed. |
+| **Passwords and keys.** You copy them through the clipboard. | It asks you to paste the password into the chat. | The password never enters the model's context. `secret-relay.py` from the separate jadlis-secrets plugin hands a secret from 1Password to one page field over a one-shot random localhost port. Without it — a "blind" clipboard: the agent puts the password on the clipboard with no output, pastes it and clears the clipboard at once. A key the site shows goes straight into Keychain or 1Password. The agent sees only the length. |
+| **An irreversible action on your account.** You press it yourself and own it. | It presses nothing: it has no session of yours. | The agent acts under your logins. A purchase, send or delete not listed in the task is forbidden: the agent stops and asks. That is a rule in the prompt, not a technical block. |
+| **A click that silently did nothing.** You see it on screen and repeat it. | — | After a meaningful action the effect is checked, not the return code. A slow navigation may report a timeout although the click went through — the agent checks the URL before any retry. |
 
 ## How it works
 
 ![A task behind a login, the bridge to the open browser, the reading ladder, an action with confirmation, a check](docs/img/how-jadlis-browser.webp)
 
-Going in — a task on a site you are already signed into; Chrome itself and the tab are kept open by you, not the plugin.
-Inside — the bridge to the extension, a reading ladder from cheap to expensive, and a question before anything irreversible.
+Going in — a task on a site where the agent or you are already signed in.
+Inside — the choice of browser, reading from cheap to expensive, and a question before anything irreversible.
 Coming out — the data pulled and the actions taken, verified by the live state rather than by a return code.
 
-In words: task behind a login → bridge to the open browser → reading ladder → action with
-confirmation → verification by the live state.
+In words: task behind a login → the agent's own profile or the bridge to your Chrome → reading
+ladder → action with confirmation → verification by the live state.
 
-The plugin installs two things: the `playwright` MCP server and the skill. The runtime is pinned in
-the repository's `.mcp.json`: the `@playwright/mcp@0.0.83` pin and four flags — `--extension`,
-`--snapshot-mode=none`, `--console-level=error`, `--image-responses=omit`. The consequences show up immediately: after a click
-or a navigation the agent is blind until it asks for a read itself; no base64 screenshot arrives;
-only the core tool set is on.
+The three browsers:
 
-The reading ladder, cheapest first: `browser_find` — grep over the accessibility tree;
-`browser_evaluate` — a JS function that returns only the computed value; a scoped snapshot by
-`target` and `depth`; a full snapshot as the last resort for an unfamiliar structure; a screenshot
-only where visual semantics matter, and always through `filename`.
+| | the agent's profile `agent` | your Chrome | background Chrome |
+|---|---|---|---|
+| What lives there | sites you signed into in that profile | a site you are signed into only on your side | your own landings and public JS pages |
+| Connection | Playwright MCP over CDP port 127.0.0.1:9333 | Playwright MCP through the bridge extension | `playwright-cli`, no window |
+| Lifetime | started on demand; optionally `idle-stop` from launchd or cron stops it after 30 min without clients | kept open by you | a session closes itself after 1 h idle |
+| Focus | stays with you | Chrome is raised on every connect | no window |
+| File upload | works | does not work | works |
+| Parallel | yes | one client across all sessions | yes, named sessions |
 
-The main trap has its own section in the skill: a fully occluded Chrome window is frozen by macOS,
-so clicks, hovers and drags hang until the timeout while `evaluate`, `find`, `type` and the waits
-keep working. The cure is raising the window with `osascript` before a series of clicks.
+The agent's profiles are separate Chrome instances, each with its own user-data-dir under
+`~/Library/Application Support/Jadlis Agent Chrome/<profile>`; they never touch your Chrome. Profiles
+and ports live in `~/.config/jadlis/agent-chrome.conf`, by default one line `agent=9333`. They are
+controlled by
+`~/.claude/scripts/agent-chrome.sh {ensure|status|stop|window|open|idle-stop} [profile]`.
+`ensure` starts Chrome and also heals discarded and crashed tabs: those hang `@playwright/mcp` 0.0.83
+on connect.
 
-Flows of five steps and more are handed by the skill to a subagent with a strict return contract.
-There are no parallel browser subagents: a session holds one connection and every subagent shares it.
+The `pw-agent` and `pw` servers are declared inline in the agent file
+`~/.claude/agents/browser-operator.md`, so they start only while that agent runs. All share one pin,
+`@playwright/mcp@0.0.83`, and the flags `--snapshot-mode=none`, `--console-level=error`,
+`--image-responses=omit`; the bridge adds `--extension`. The consequences show up immediately: after
+a click or a navigation the agent is blind until it asks for a read itself; no base64 screenshot arrives.
+
+Every tool call is a model turn, so the skill saves turns. Network first: the agent finds the site's
+API and calls it with a `fetch` from inside the page. A known flow goes into one
+`browser_run_code_unsafe` script instead of ten calls. Then direct URLs instead of menus, and
+extracting data with code. The reading ladder, cheapest first: `browser_find` — grep over the
+accessibility tree; `browser_evaluate` — a JS function that returns only the computed value; a scoped
+snapshot by `target` and `depth`; a full snapshot for an unfamiliar structure; a screenshot only for
+visual questions.
+
+Several agents can work at once. In different profiles there are no limits. In one profile each
+agent opens its own background window and works in it only through `browser_run_code_unsafe`.
+
+The bridge trap has its own section in the skill: a fully occluded window of your Chrome is frozen by
+macOS, so clicks hang while reading keeps working. The cure is raising the window by its process pid
+with `osascript`. In the agent's profiles clicks and typing work in a covered window too.
 
 ## Installing and the first run
 
@@ -70,10 +97,19 @@ Run exactly these commands, verbatim, abbreviating nothing:
 1. claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — show me the jadlis-browser line and its version.
-Then tell me in one line: install the Playwright MCP Bridge extension from the Chrome Web
-Store and restart Claude Code.
-The extension token is optional; Claude Code asks for it when the plugin is enabled.
-Never print the token value: check only whether it is set or not.
+4. mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
+5. Find the plugin folder: claude plugin list --json, the installPath field of jadlis-browser.
+   Below, P is that folder.
+6. sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
+   (if the file already exists, ask me first whether to overwrite it).
+7. cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
+8. chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
+9. cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
+10. ~/.claude/scripts/agent-chrome.sh --help — show me the output.
+Then tell me: restart Claude Code, run ~/.claude/scripts/agent-chrome.sh open and sign
+into the sites I need in the window that opens.
+The fallback through my own Chrome needs the extension token in the
+PLAYWRIGHT_MCP_EXTENSION_TOKEN variable. Never print the token value: check only whether it is set.
 Before each command show it to me in full and wait for a yes. If I say no, do not run it,
 tell me what you skipped and move on.
 If a command returns an error — stop, show the output, do not go on to the next one.
@@ -90,6 +126,25 @@ claude plugin list
 The first command installs nothing — it adds the marketplace. Only the second installs, and it is
 removed by one line: `claude plugin uninstall jadlis-browser@jadlis --keep-data`.
 
+Next come the agent and the Chrome profile. The plugin carries them as files; you put them in place
+once. `$P` is the plugin folder: `claude plugin list --json` shows it in the `installPath` field.
+
+```
+mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
+sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
+cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
+chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
+cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
+```
+
+`sed` fills in your home folder path: the agent file does not expand variables itself.
+`~/.config/jadlis/agent-chrome.conf` holds one profile by default, `agent=9333`. Need another
+profile — add a `name=port` line and a matching `pw-<name>` block with that port to the agent file.
+`BROWSER_PROFILE` in the shared `~/.config/jadlis/agent.conf` sets the default profile. Restart
+Claude Code and open the profile window: `~/.claude/scripts/agent-chrome.sh open`. Sign into the
+sites you need in that window once. For passwords install the jadlis-secrets plugin: it provides
+`secret-relay.py` and `op-agent.sh`.
+
 **c) The short command.** Open Claude Code and type:
 
 ```
@@ -99,38 +154,43 @@ removed by one line: `claude plugin uninstall jadlis-browser@jadlis --keep-data`
 Not found — check the name with `claude plugin list`. The skill also triggers on a plain sentence:
 "in my browser open the orders page and pull the statuses".
 
-**The extension in Chrome.** Install [Playwright Extension](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm)
+**The extension in Chrome — for the fallback only.** Install [Playwright Extension](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm)
 from the Chrome Web Store (Chrome, Edge or Chromium), version 0.3.0 or newer — the bridge no longer
-speaks the old protocol. On the first browser call the extension opens a tab-picker page and asks
-you to confirm the connection. The token from the extension's status page removes that dialog:
-Claude Code asks for it when the plugin is enabled, the value goes into the macOS Keychain and is
-never written into config files; skipped it — set it later via `/plugin` → jadlis-browser → settings.
+speaks the old protocol. Without a token the extension asks you to confirm a tab on the first connect.
+The token from the extension's status page removes that dialog. The plugin no longer asks for it:
+put it into the `PLAYWRIGHT_MCP_EXTENSION_TOKEN` environment variable, for example in `~/.zshenv`.
 
 **The check.** "show me the browser tabs" → the reply lists the open tabs.
 
 ## Limits, cost, updating
 
 **What it does not do.** It does not replace an ordinary scraper: a public page is cheaper to fetch
-that way, and what belongs here is whatever lives behind your login. It does not upload files to a
-site — in extension mode the privileged file-setting command is blocked by the browser, so you pick
-the file by hand or drop it in. It does not open `file://`. It does not run in parallel: one
-connection per session, parallel browser subagents are forbidden. It does not block irreversible
-actions technically — it asks, but the keys to your account in its hands are yours. Arbitrary JS
-inside the server process (`browser_run_code_unsafe`) stays gated: trusted pages only.
+that way, and what belongs here is whatever lives behind a login. Through the bridge it does not upload
+files: in extension mode the browser blocks the privileged file-setting command. In the agent's
+profiles upload works. It does not open `file://`. The bridge takes only one client at a time across
+all sessions. It does not block irreversible actions technically — it asks, but the keys to your
+account in its hands are yours. Arbitrary JS inside the server process (`browser_run_code_unsafe`)
+runs only code the agent wrote for the task, never code taken from a page.
 
-**What you need.** No keys and no subscriptions. You need Chrome (or Edge, or Chromium) with the
-Playwright MCP Bridge extension 0.3.0 or newer, and `npx` in the system — it starts the server. The
-extension token is optional and only removes the confirmation dialog. The application Claude Code is
-started from needs Full Disk Access: without it the server cannot enumerate the Chrome extensions
-folder and reports "Extension not found" while the extension is installed.
+**What you need.** No keys and no subscriptions. You need Chrome and `npx` in the system — it starts
+the servers. You need Node.js 22 or newer. The agent `~/.claude/agents/browser-operator.md` and the script
+`~/.claude/scripts/agent-chrome.sh` come from the plugin through the steps in "Installing and the
+first run". For the fallback — the
+Playwright MCP Bridge extension 0.3.0 or newer and, optionally, the token in
+`PLAYWRIGHT_MCP_EXTENSION_TOKEN`. The application Claude Code is started from needs Full Disk Access:
+without it the bridge cannot enumerate the Chrome extensions folder and reports "Extension not found"
+while the extension is installed.
 
-**How tokens get spent.** A run is light: no subagents, no fan-outs; what is expensive here is
-reading the page, not the model. A full snapshot of an unfamiliar structure and screenshots cost
-more than the rest, which is why both sit at the bottom of the ladder.
+**How tokens get spent.** A run costs turns times context. That is why the skill shrank from 25 KB
+to ~8 KB: it holds only what the model cannot see from inside, plus the techniques that save turns. A
+full snapshot of an unfamiliar structure and screenshots cost more than the rest, which is why both
+sit at the bottom of the ladder.
 
 **Verified where I work:** my Mac, my Chrome. The `@playwright/mcp@0.0.80` and bridge-extension pair
-was run through the `skills/browser/TESTS.md` matrix on 2026-09-01; the pin moved to 0.0.83 on 2026-09-30. Verified on macOS only; about
-other systems I have nothing to say.
+was run through the `skills/browser/TESTS.md` matrix on 2026-09-01; the pin moved to 0.0.83 on
+2026-09-30. The agent's profiles went through the same matrix on 2026-10-07. The pin will be raised
+once the fixes for microsoft/playwright#42936 and #43075 ship. Verified on macOS only; about other
+systems I have nothing to say.
 
 **Terms of use.** There is no license: all rights reserved by the author. You may read it and use it
 personally. Commercial use, republishing and bundling it into your own products — by arrangement

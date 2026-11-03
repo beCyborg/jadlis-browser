@@ -2,6 +2,52 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [3.0.2] — 2026-11-03 — шаблон агента и скрипты профиля в плагине / agent template and profile scripts ship with the plugin
+
+### Для человека
+- Плагин теперь сам несёт всё, что обещает README: шаблон агента `browser-operator` и скрипт `agent-chrome.sh` для своего профиля Chrome агента. Раньше их нужно было где-то взять.
+- В скилле и обоих README появился раздел про установку: куда скопировать шаблон и скрипты и как заполнить список профилей.
+- По умолчанию у агента один профиль Chrome — `agent`. Ещё профили добавляются строкой в `~/.config/jadlis/agent-chrome.conf`.
+- Пароли по-прежнему не попадают в контекст модели: одноразовый `secret-relay.py` из плагина jadlis-secrets, а без него — «слепой» буфер обмена.
+- Из текстов убраны личные пути и имена профилей автора.
+
+### For agents
+- Added: `assets/browser-operator.md.template` — generic agent: one inline server `pw-agent` (`--cdp-endpoint http://127.0.0.1:9333`) + bridge `pw`, pin `@playwright/mcp@0.0.83`, `{{HOME}}` rendered at install with `sed`; profile from the task, else `agent-chrome.sh profile` (`BROWSER_PROFILE` in `~/.config/jadlis/agent.conf`, else `agent`); secrets via `secret-relay.py serve|receive` + `op-agent.sh` (jadlis-secrets, vault `OP_VAULT` from agent.conf read with `sed`, not sourced) or blind clipboard (`pbcopy` → `ControlOrMeta+V` → `pbcopy < /dev/null`, length only); card details are a human step unless the task gives a relay; report format and BLOCKED → SendMessage loop kept.
+- Added: `scripts/agent-chrome.sh` — profiles from `~/.config/jadlis/agent-chrome.conf` (`AGENT_CHROME_CONF`), built-in `agent=9333` when the file is missing; profile argument optional (default from agent.conf); new `profile`, `profiles`, `--help` (no Chrome, no port access); node resolved from `AGENT_CHROME_NODE` / PATH / Homebrew paths; helper looked up next to the script (`AGENT_CHROME_HELPER`); output carries `"profile"`.
+- Added: `scripts/agent-chrome-cdp.mjs` (`#!/usr/bin/env node`, usage guard for missing args) and `scripts/agent-chrome.conf.example` (`agent=9333`).
+- Changed: `skills/browser/SKILL.md` — generic profiles (`mcp__pw-<profile>__`), output-dir instead of a personal path, new «Installation» section with `${CLAUDE_PLUGIN_ROOT}` paths; `references/cli.md`, `references/details.md`, `references/gotchas.md`, `TESTS.md` — personal paths, profile names and site names removed.
+- Changed: `README.md`, `README.en.md` — three browsers = agent profile over CDP, the user's Chrome over the bridge, headless `playwright-cli`; install section copies the template and scripts; «what you need» no longer points at files the plugin did not ship; EN language switch matches the house first line.
+- Changed: `CHANGELOG.md` 3.0.0/3.0.1 entries — personal labels, vault paths and launchd names removed; `.claude-plugin/plugin.json` — `version` → 3.0.2, `description`.
+- Migration: existing installs keep their own `~/.claude/agents/browser-operator.md` and scripts; the plugin never overwrites them. New installs follow the README install section.
+
+## [3.0.1] — 2026-10-08 — итоги ресёрча «Экономный браузер-агент» / findings of the turn-saving research
+
+### Для человека
+- В скилл вошли выводы ресёрча: пакет шагов вместо пошаговых вызовов, интерфейс сразу, если у сайта нет API, и повтор сохранённого сценария вместо новой разведки.
+
+### For agents
+- Changed: `skills/browser/SKILL.md` «Techniques that save turns» — batching evidence (162 vs 79 calls on one 30-test benchmark; every call re-reads the history), split a script only where the next step depends on what was read, no usable API → UI at once, new item 6 «Explore once, replay next time» (save the working script or endpoint + payload in `site_<name>.md`; Stagehand-style caches need Browserbase). Source: the author's research note «Экономный браузер-агент» (15 of 16 claims confirmed).
+- Added: `skills/browser/references/details.md` — failure-born rules cut from the 2.1.0 skill, kept instead of deleted (research: rare rules go to a reference file): form field types, dialogs incl. `beforeunload` (TickTick 08.10), `wait_for`, stale refs, schema drift, Cloudflare challenge on fetch, bridge-only notes. `SKILL.md` points to it in one line; technique 1 checks `status`/`content-type` before parsing.
+- Added: `references/gotchas.md` — cookie copy from the user's Chrome into an agent profile: 9 of 13 domains accepted copied sessions; check login in the user's Chrome before and after a copy.
+- Changed: `.claude-plugin/plugin.json` — `version` → 3.0.1.
+
+## [3.0.0] — 2026-10-07 — три браузера: два своих профиля Chrome агента + твой Chrome запасным путём / three browsers: agent Chrome profiles + the user's Chrome as fallback
+
+### Для человека
+- Агент работает в своих профилях Chrome: один для рабочих сервисов, второй для твоих личных аккаунтов из утверждённого списка. Окна открываются в фоне, фокус у тебя не забирают.
+- Загрузка файлов теперь работает. Несколько операторов могут работать одновременно.
+- Твой Chrome через расширение остаётся запасным путём — только для сайтов, где агент нигде не залогинен.
+- Пароли и ключи больше не идут через буфер обмена.
+- Скилл сократился с 25 КБ до ~8 КБ: факты среды и приёмы, которые экономят ходы.
+
+### For agents
+- Breaking: removed `.mcp.json` and `userConfig.PLAYWRIGHT_MCP_EXTENSION_TOKEN` — the plugin now ships the skill only. The Playwright MCP servers `pw-<profile>` (`--cdp-endpoint http://127.0.0.1:9333`, `:9334`) and `pw` (`--extension`) are inline in `~/.claude/agents/browser-operator.md`, pin `@playwright/mcp@0.0.83`; the bridge token comes from `PLAYWRIGHT_MCP_EXTENSION_TOKEN` in the environment. Tool prefixes: `mcp__pw-<profile>__`, `mcp__pw__` (no more `mcp__plugin_jadlis-browser_playwright__`).
+- Changed: `skills/browser/SKILL.md` rewritten (25 KB → ~8 KB): three-browser table, facts (what raises Chrome, active-tab clicks, false navigation timeout, upload, files, session cookies), turn-saving techniques (network first, one run_code script, direct URLs, extract with code), parallel rule for one profile (own background window via CDP `Target.createTarget` + run_code by `targetId`), bridge section (pid-based raise, bridge killers, token redaction).
+- Changed: `skills/browser/TESTS.md` — new matrix for agent profiles over CDP (2026-10-07), gate split into agent profile / bridge.
+- Added: `skills/browser/references/gotchas.md` section «Агентские профили» — discarded tabs hang 0.0.83, process without port, AppleScript addresses the newest Chrome.
+- Changed: `.claude-plugin/plugin.json` — `version` → 3.0.0, `displayName`, `description`; `README.md`, `README.en.md` — three browsers.
+- Migration: profile scripts lived outside the plugin in this version (`~/.claude/scripts/agent-chrome.sh`, `agent-chrome-cdp.mjs`, `secret-relay.py`) and were started by the author's own launchd jobs; 3.0.2 ships the agent template and the profile scripts.
+
 ## [2.1.1] — 2026-10-08 — репозиторий переехал на GitLab / repository moved to GitLab
 
 ### Для человека
