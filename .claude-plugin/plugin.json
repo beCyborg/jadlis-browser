@@ -7,8 +7,8 @@
   "author": {
     "name": "Be Cyborg"
   },
-  "homepage": "https://gitlab.com/beCyborg/jadlis-browser",
-  "repository": "https://gitlab.com/beCyborg/jadlis-browser",
+  "homepage": "https://github.com/beCyborg/jadlis-browser",
+  "repository": "https://github.com/beCyborg/jadlis-browser",
   "keywords": [
     "browser",
     "playwright",

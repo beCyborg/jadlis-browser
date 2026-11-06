@@ -9,7 +9,7 @@
 читает по лестнице — от точечного поиска по дереву до полного снимка последним.
 
 ```
-claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 ```
 
@@ -92,7 +92,7 @@ API сайта и зовёт его через `fetch` изнутри стран
 ```
 Ты — установщик. Поставь на этот Mac плагин jadlis-browser из маркетплейса jadlis.
 Выполни ровно эти команды, дословно, ничего не сокращая:
-1. claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+1. claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — покажи мне строку про jadlis-browser и его версию.
 4. mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
@@ -116,7 +116,7 @@ PLAYWRIGHT_MCP_EXTENSION_TOKEN. Значение токена не печата�
 **б) Команды руками.**
 
 ```
-claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 claude plugin list
 ```

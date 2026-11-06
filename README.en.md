@@ -9,7 +9,7 @@ profile works in the background, uploads files and holds several agents at once.
 snapshot, which comes last.
 
 ```
-claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 ```
 
@@ -94,7 +94,7 @@ with `osascript`. In the agent's profiles clicks and typing work in a covered wi
 ```
 You are the installer. Put the jadlis-browser plugin from the jadlis marketplace on this Mac.
 Run exactly these commands, verbatim, abbreviating nothing:
-1. claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+1. claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — show me the jadlis-browser line and its version.
 4. mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
@@ -118,7 +118,7 @@ If a command returns an error — stop, show the output, do not go on to the nex
 **b) The commands by hand.**
 
 ```
-claude plugin marketplace add https://gitlab.com/beCyborg/jadlis-hub.git
+claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 claude plugin install jadlis-browser@jadlis
 claude plugin list
 ```
