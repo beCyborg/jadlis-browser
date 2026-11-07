@@ -2,6 +2,22 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [3.1.0] — 2026-11-07 — установщик, удержание Chrome на BLOCKED, капча, Playwright MCP 0.0.84 / installer, BLOCKED hold, CAPTCHA rule, Playwright MCP 0.0.84
+
+### Для человека
+- Одна команда `node scripts/setup.mjs` ставит и обновляет агента, скрипты и службу и печатает версию, которая реально стоит. С `BROWSER_AUTO_SETUP="yes"` это делает сама первая сессия после обновления.
+- Chrome больше не гаснет, пока оператор ждёт твоего ответа на BLOCKED: страница с вопросом остаётся открытой. Основной профиль можно держать включённым всегда (`BROWSER_KEEPALIVE`).
+- Оператор не кликает в капчу: выводит её вкладку вперёд и ждёт расширение-решатель 60–90 секунд. Длинные сценарии он режет на короткие шаги.
+
+### For agents
+- Added: `scripts/setup.mjs [--dry-run] [--no-launchd] [--auto]` — copies `agent-chrome.sh`/`agent-chrome-cdp.mjs` to `~/.claude/scripts/` (+ `.jadlis-browser-version` stamp), renders `~/.claude/agents/browser-operator.md` with one `pw-<name>` server per `agent-chrome.conf` line and `{{VERSION}}`, creates the conf from the example only when missing, writes and reloads `~/Library/LaunchAgents/com.jadlis.agent-chrome.plist` (`agent-chrome.sh watch`, RunAtLoad, every 120 s), backs up replaced files as `.bak-<ts>`, prints `{ok, version, installed, playwright, profiles, keepalive, launchd, changed}`.
+- Added: `hooks/hooks.json` SessionStart(startup) → `setup.mjs --auto`: a no-op unless `BROWSER_AUTO_SETUP="yes"` in `~/.config/jadlis/agent.conf` and the stamp differs from the plugin version; mkdir lock against parallel sessions.
+- Added: `agent-chrome.sh hold [profile] [min]` / `release [profile]` — `$STATE/<p>.wait.<pid>` bound to the Claude Code process (`CLAUDE_PID`, else the nearest `claude` ancestor), max `AGENT_CHROME_WAIT_MIN` (1440); `idle-stop` keeps the profile while a live hold exists; `status` reports `waits`.
+- Added: `agent-chrome.sh watch` (keep-alive for `BROWSER_KEEPALIVE` profiles, idle-stop for the rest), `front [profile] [targetId]` (helper `front` takes a targetId), `version`.
+- Changed: `assets/browser-operator.md.template` — pin `@playwright/mcp@0.0.84`; BLOCKED → `hold`, resume → `release`; new «CAPTCHA» section (front, no click, wait 60–90 s, image hCaptcha / QR / DataDome → BLOCKED, no submit loops); short `run_code` rule (one sub-goal per call, return `{ok, url, data}`); report line `BROWSER: jadlis-browser <version>`.
+- Changed: `skills/browser/SKILL.md` — server 0.0.84, CAPTCHA and BLOCKED-hold facts, «Installation» = setup.mjs; `references/gotchas.md` «Капча»; both READMEs.
+- Migration: run `node "$P/scripts/setup.mjs"` once (it replaces a hand-made agent file, keeping a `.bak-<ts>`); old per-profile launchd jobs that call `agent-chrome.sh idle-stop|ensure` can be removed in favour of `com.jadlis.agent-chrome`.
+
 ## [3.0.2] — 2026-11-03 — шаблон агента и скрипты профиля в плагине / agent template and profile scripts ship with the plugin
 
 ### Для человека

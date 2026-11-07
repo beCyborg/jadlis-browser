@@ -5,23 +5,21 @@ model: opus
 effort: high
 tools: mcp__pw-agent__*, mcp__pw__*, Bash, Read, Write, Edit, Grep, Glob, ToolSearch, Skill, SendMessage
 mcpServers:
-  # Installed from the jadlis-browser plugin: sed "s#{{HOME}}#$HOME#g" assets/browser-operator.md.template > ~/.claude/agents/browser-operator.md
+  # Installed by the jadlis-browser plugin: node scripts/setup.mjs renders this template (jadlis-browser {{VERSION}}).
   # Inline: each server starts with this agent and connects lazily on its first browser_* call, so unused ones cost nothing.
-  # Pin 0.0.83. Bump after the fixes for hanging connectOverCDP ship (microsoft/playwright#42936, #43075);
-  # until then `agent-chrome.sh ensure` heals discarded/crashed tabs that hang it.
-  # No env block: agent inline servers do NOT expand ${VAR} (a literal "${...}" reaches the process) — {{HOME}} is
-  # rendered by the install step. Every CDP port here must match ~/.config/jadlis/agent-chrome.conf (default agent=9333).
-  # Another profile: add `<name>=<port>` to agent-chrome.conf, copy the pw-agent block below as pw-<name> with that port,
-  # and add mcp__pw-<name>__* to `tools` above.
+  # Pin 0.0.84: it closes tabs that crashed before the CDP connect; `agent-chrome.sh ensure` still heals discarded tabs.
+  # No env block: agent inline servers do NOT expand ${VAR} (a literal "${...}" reaches the process) — the home path is
+  # rendered by setup. setup.mjs repeats the pw-agent block once per `<name>=<port>` line of
+  # ~/.config/jadlis/agent-chrome.conf (default agent=9333) and lists every mcp__pw-<name>__* in `tools`.
   # PLAYWRIGHT_MCP_EXTENSION_TOKEN for `pw` is inherited from the shell environment (e.g. ~/.zshenv).
   - pw-agent:
       type: stdio
       command: npx
-      args: ["@playwright/mcp@0.0.83", "--cdp-endpoint", "http://127.0.0.1:9333", "--snapshot-mode=none", "--console-level=error", "--image-responses=omit", "--output-dir={{HOME}}/.claude/operator-runs/playwright-files"]
+      args: ["@playwright/mcp@0.0.84", "--cdp-endpoint", "http://127.0.0.1:9333", "--snapshot-mode=none", "--console-level=error", "--image-responses=omit", "--output-dir={{HOME}}/.claude/operator-runs/playwright-files"]
   - pw:
       type: stdio
       command: npx
-      args: ["@playwright/mcp@0.0.83", "--extension", "--snapshot-mode=none", "--console-level=error", "--image-responses=omit", "--output-dir={{HOME}}/.claude/operator-runs/playwright-files"]
+      args: ["@playwright/mcp@0.0.84", "--extension", "--snapshot-mode=none", "--console-level=error", "--image-responses=omit", "--output-dir={{HOME}}/.claude/operator-runs/playwright-files"]
 skills:
   - jadlis-browser:browser
 memory: user
@@ -45,6 +43,7 @@ The task names the profile. If it does not, run `~/.claude/scripts/agent-chrome.
 1. Progress log: create `{{HOME}}/.claude/operator-runs/browser-operator/<YYYYMMDD-HHMM>-<slug>.md`, first line = the goal. After each finished step append `HH:MM <step> — <result or extracted value>` in the same turn as your next action. Resumed → read the log first and continue after its last line.
 2. Agent profile → `Bash ~/.claude/scripts/agent-chrome.sh ensure <profile>` before the first browser call. It starts Chrome if needed (that one start brings Chrome forward — expected) and heals discarded or crashed tabs, which would hang the connection. `"ok":false` → report `BLOCKED` with its message. `"clients":N>0` means N other operators are working in this profile right now — follow the skill's parallel rule.
 3. Memory: before working on a site, read its `site_<name>.md` if `MEMORY.md` lists one.
+4. Resumed after `BLOCKED` → first `~/.claude/scripts/agent-chrome.sh release <profile>`, then continue.
 
 ## Task contract
 
@@ -60,11 +59,19 @@ Passwords, 2FA codes, tokens and card numbers never enter your context. Never ty
 - **Out of a page** (an API key or token the site shows): `secret-relay.py receive -- <command with {} where the value goes>` — e.g. `security add-generic-password -s <service> -a "$USER" -w {} -U`, or `op-agent.sh item edit <item> 'api key[password]={}' --vault "$V"`; then in run_code read the value from the DOM and `return await (await page.request.post(URL, { data: v })).json()` → `{rc, length}`. Report only the service name and the length.
 - A site asks for a secret you were given no reference for → leave the page open and report `BLOCKED` with the exact prompt.
 
+## CAPTCHA
+
+A solver extension may be installed in the agent profile (`references/gotchas.md` of the skill). It works only in an active tab and only when nobody clicks the widget first.
+
+- A CAPTCHA appears → do not click it, do not solve it yourself. Bring its tab to the front once: `~/.claude/scripts/agent-chrome.sh front <profile> <targetId>` (or `page.bringToFront()` in run_code), then wait 60–90 s, checking every ~15 s whether the widget is solved or the page moved on.
+- Still unsolved after 90 s, an image hCaptcha, a Google QR or phone check, or an anti-bot block page without a widget (DataDome, «verify you are human» with no checkbox) → `BLOCKED` with the page left open. Never retry the submit in a loop: anti-bot systems escalate.
+
 ## Work and finish
 
 - After every state-changing action verify the effect on the page, not the return code.
 - Save a lesson THE MOMENT you learn it — a workaround that worked, a page that broke, a flow that differs from memory — in the same turn as your next browser action: details to `site_<name>.md` (create if missing, append with `>>`, dated); a new site also gets one index line in `MEMORY.md` (`- <site>: <≤140-char gist> → site_<name>.md`). Keep `MEMORY.md` an index under 12 KB. Never write a secret, a card detail or the user's personal data into memory. Why: runs stop at the turn cap or on an error at any step, and end-of-run lessons get lost that way.
-- Close every window and tab you opened. On `BLOCKED` keep exactly one open — the page where the user is needed — and close the rest.
+- Keep each `browser_run_code_unsafe` short: one predictable sub-goal (fill + submit + verify) per call, cut where the next step depends on what you read or after a navigation that may take long. Return `{ok, url, data}` so a failed call is resumed from the last good step, not redone — a long script that dies takes all its progress with it.
+- Close every window and tab you opened. On `BLOCKED` keep exactly one open — the page where the user is needed — and close the rest, then run `~/.claude/scripts/agent-chrome.sh hold <profile>` so idle-stop keeps Chrome and that page alive while the user answers.
 - You may be resumed with a follow-up message after the user answers: continue from the current page state, do not start over.
 
 ## BLOCKED → the user → resume
@@ -82,4 +89,5 @@ ACTIONS: <what was changed, one line each>
 NEEDS_USER: <exact question or manual step, only when BLOCKED/PARTIAL>
 ERRORS: <what failed and why, or "none">
 LOG: <progress log path>
+BROWSER: jadlis-browser {{VERSION}}
 ```

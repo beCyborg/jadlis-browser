@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// CDP helper for agent-chrome.sh (jadlis-browser). Node.js 22+. Usage: agent-chrome-cdp.mjs <port> <heal|tabs|window [url]|front|close>
+// CDP helper for agent-chrome.sh (jadlis-browser). Node.js 22+. Usage: agent-chrome-cdp.mjs <port> <heal|tabs|window [url]|front [targetId]|close>
 // heal: find page targets that do not answer Runtime.evaluate (discarded or crashed tabs — they hang
 // connectOverCDP in @playwright/mcp 0.0.83, playwright-mcp#1757), reload them in place, close the
 // ones that stay dead. Never uses Target.activateTarget there: it brings the window to the front.
 const [port, cmd, arg] = process.argv.slice(2);
 if (!/^\d+$/.test(port || '') || !cmd) {
-  console.error('usage: agent-chrome-cdp.mjs <port> <heal|tabs|window [url]|front|close>');
+  console.error('usage: agent-chrome-cdp.mjs <port> <heal|tabs|window [url]|front [targetId]|close>');
   process.exit(port === '--help' || port === '-h' ? 0 : 64);
 }
 const base = `http://127.0.0.1:${port}`;
@@ -69,7 +69,8 @@ switch (cmd) {
     break;
   }
   case 'front': {
-    const p = (await pages())[0] || { targetId: (await send('Target.createTarget', { url: 'about:blank', newWindow: true })).result?.targetId };
+    const all = await pages();
+    const p = (arg && all.find(x => x.targetId === arg)) || all[0] || { targetId: (await send('Target.createTarget', { url: 'about:blank', newWindow: true })).result?.targetId };
     await send('Target.activateTarget', { targetId: p.targetId });
     result = { ok: true, targetId: p.targetId };
     break;

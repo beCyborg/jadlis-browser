@@ -97,15 +97,11 @@ Run exactly these commands, verbatim, abbreviating nothing:
 1. claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — show me the jadlis-browser line and its version.
-4. mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
-5. Find the plugin folder: claude plugin list --json, the installPath field of jadlis-browser.
+4. Find the plugin folder: claude plugin list --json, the installPath field of jadlis-browser.
    Below, P is that folder.
-6. sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
-   (if the file already exists, ask me first whether to overwrite it).
-7. cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
-8. chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
-9. cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
-10. ~/.claude/scripts/agent-chrome.sh --help — show me the output.
+5. node "$P/scripts/setup.mjs" --dry-run — show me which files it would change
+   (if ~/.claude/agents/browser-operator.md already exists, ask me whether to replace it).
+6. node "$P/scripts/setup.mjs" — show me the output: ok, version and installed must match.
 Then tell me: restart Claude Code, run ~/.claude/scripts/agent-chrome.sh open and sign
 into the sites I need in the window that opens.
 The fallback through my own Chrome needs the extension token in the
@@ -126,21 +122,20 @@ claude plugin list
 The first command installs nothing — it adds the marketplace. Only the second installs, and it is
 removed by one line: `claude plugin uninstall jadlis-browser@jadlis --keep-data`.
 
-Next come the agent and the Chrome profile. The plugin carries them as files; you put them in place
-once. `$P` is the plugin folder: `claude plugin list --json` shows it in the `installPath` field.
+Next come the agent and the Chrome profile. The plugin carries them as files; one command puts them
+in place. `$P` is the plugin folder: `claude plugin list --json` shows it in the `installPath` field.
 
 ```
-mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
-sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
-cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
-chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
-cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
+node "$P/scripts/setup.mjs"
 ```
 
-`sed` fills in your home folder path: the agent file does not expand variables itself.
+It copies the scripts to `~/.claude/scripts/`, renders the agent `~/.claude/agents/browser-operator.md`
+with one `pw-<name>` block per profile, loads the `com.jadlis.agent-chrome` job and prints the version
+that is now installed. A replaced file stays next to it as `<name>.bak-<timestamp>`.
 `~/.config/jadlis/agent-chrome.conf` holds one profile by default, `agent=9333`. Need another
-profile — add a `name=port` line and a matching `pw-<name>` block with that port to the agent file.
-`BROWSER_PROFILE` in the shared `~/.config/jadlis/agent.conf` sets the default profile. Restart
+profile — add a `name=port` line and run setup again. `BROWSER_PROFILE` in the shared
+`~/.config/jadlis/agent.conf` sets the default profile. There `BROWSER_KEEPALIVE="<name>"` keeps a
+profile always running, and `BROWSER_AUTO_SETUP="yes"` repeats setup after every plugin update. Restart
 Claude Code and open the profile window: `~/.claude/scripts/agent-chrome.sh open`. Sign into the
 sites you need in that window once. For passwords install the jadlis-secrets plugin: it provides
 `secret-relay.py` and `op-agent.sh`.
@@ -188,8 +183,8 @@ sit at the bottom of the ladder.
 
 **Verified where I work:** my Mac, my Chrome. The `@playwright/mcp@0.0.80` and bridge-extension pair
 was run through the `skills/browser/TESTS.md` matrix on 2026-09-01; the pin moved to 0.0.83 on
-2026-09-30. The agent's profiles went through the same matrix on 2026-10-07. The pin will be raised
-once the fixes for microsoft/playwright#42936 and #43075 ship. Verified on macOS only; about other
+2026-09-30. The agent's profiles went through the same matrix on 2026-10-07. Since 3.1.0 the pin is 0.0.84:
+it closes tabs that crashed before the CDP connect. Verified on macOS only; about other
 systems I have nothing to say.
 
 **Terms of use.** There is no license: all rights reserved by the author. You may read it and use it
@@ -204,6 +199,9 @@ claude plugin marketplace update jadlis
 claude plugin update jadlis-browser@jadlis
 claude plugin list
 ```
+
+The scripts and the agent live outside the plugin, so after an update run `node "$P/scripts/setup.mjs"`
+(or turn on `BROWSER_AUTO_SETUP="yes"` — then the first new session does it).
 
 A reinstall, if something landed wrong:
 

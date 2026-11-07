@@ -6,23 +6,31 @@
 #   Default profile (no profile argument): BROWSER_PROFILE from ~/.config/jadlis/agent.conf, else `agent`.
 #   Each profile is a separate Chrome instance with its own data dir under
 #   ~/Library/Application Support/Jadlis Agent Chrome/<profile>; the user's own Chrome is never touched.
-# Usage: agent-chrome.sh {ensure|status|stop|window [url]|open|idle-stop} [profile]
+# Usage: agent-chrome.sh {ensure|status|stop|window [url]|front [targetId]|open|hold [min]|release|idle-stop} [profile]
 #        agent-chrome.sh profile    print the default profile
 #        agent-chrome.sh profiles   print the configured profiles as name=port
+#        agent-chrome.sh watch      for launchd: keep BROWSER_KEEPALIVE profiles up, idle-stop the others
+#        agent-chrome.sh version    the jadlis-browser version that installed this copy (setup stamp)
 #        agent-chrome.sh --help
 #   ensure     start if not running, wait for the port, heal discarded/crashed tabs; "clients" = other operators connected now
 #   status     port, tabs, healed tabs (heals like ensure, never starts Chrome)
 #   stop       Browser.close over CDP (Chrome flushes cookies), kill only as fallback
 #   window     open a background window for a parallel operator, print its targetId
+#   front      bring one tab (targetId, default the first) and its window to the front — e.g. a CAPTCHA the solver
+#              extension must see in an active tab; no hold
 #   open       ensure + bring the profile's window to the front for manual work (log in by hand);
 #              holds idle-stop for HOLD_MIN (120) min
-#   idle-stop  stop the profile when no CDP client was connected for IDLE_MIN (30) minutes and no live `open` hold is set;
-#              optional — run it every few minutes from launchd or cron to free memory
+#   hold       an operator stopping with BLOCKED keeps the profile up while its Claude Code process lives,
+#              at most WAIT_MIN (1440) min or the given minutes; `release` drops this process's hold
+#   idle-stop  stop the profile when no CDP client was connected for IDLE_MIN (30) minutes, no live `open` hold
+#              and no live BLOCKED hold is set; run it every few minutes from launchd (`watch` does)
+#   Keep-alive: BROWSER_KEEPALIVE="name1 name2" in agent.conf — `watch` starts those profiles when they are down
+#              and never idle-stops them.
 # Needs: macOS, Google Chrome, Node.js 22+ (global WebSocket). Binary paths are resolved explicitly: launchd gives a minimal PATH.
 set -u
 
-USAGE="usage: agent-chrome.sh {ensure|status|stop|window [url]|open|idle-stop} [profile]
-       agent-chrome.sh {profile|profiles|--help}"
+USAGE="usage: agent-chrome.sh {ensure|status|stop|window [url]|front [targetId]|open|hold [min]|release|idle-stop} [profile]
+       agent-chrome.sh {profile|profiles|watch|version|--help}"
 
 CMD=${1:-}
 case "$CMD" in
@@ -45,6 +53,7 @@ STATE="$ROOT/.state"
 LOG="$HOME/.claude/logs/agent-chrome.log"
 IDLE_MIN=${AGENT_CHROME_IDLE_MIN:-30}
 HOLD_MIN=${AGENT_CHROME_HOLD_MIN:-120}
+WAIT_MIN=${AGENT_CHROME_WAIT_MIN:-1440}
 CONF=${AGENT_CHROME_CONF:-$HOME/.config/jadlis/agent-chrome.conf}
 AGENT_CONF=${JADLIS_AGENT_CONF:-$HOME/.config/jadlis/agent.conf}
 
@@ -62,9 +71,24 @@ default_profile() {
   echo "${p:-agent}"
 }
 
+keepalive_list() {
+  [ -r "$AGENT_CONF" ] || return 0
+  awk -F= '$1 == "BROWSER_KEEPALIVE" { sub(/^[^=]*=/, ""); gsub(/["\047]/, ""); gsub(/,/, " "); print; exit }' "$AGENT_CONF"
+}
+
 case "$CMD" in
   profile) default_profile; exit 0 ;;
   profiles) profiles; exit 0 ;;
+  version) cat "$(cd "$(dirname "$0")" && pwd)/.jadlis-browser-version" 2>/dev/null || echo unknown; exit 0 ;;
+  watch)
+    keep=" $(keepalive_list) "
+    for name in $(profiles | cut -d= -f1); do
+      case "$keep" in
+        *" $name "*) "$0" status "$name" >/dev/null 2>&1 || "$0" ensure "$name" >/dev/null 2>&1 ;;
+        *) "$0" idle-stop "$name" >/dev/null 2>&1 ;;
+      esac
+    done
+    exit 0 ;;
 esac
 
 P=${2:-$(default_profile)}; ARG=${3:-}
@@ -82,7 +106,7 @@ esac
 DIR="$ROOT/$P"
 
 case "$CMD" in
-  ensure|status|stop|window|open|idle-stop) ;;
+  ensure|status|stop|window|front|open|hold|release|idle-stop) ;;
   *) echo "$USAGE" >&2; exit 64 ;;
 esac
 if [ -z "$NODE" ]; then echo '{"ok":false,"error":"node not found — install Node.js 22+ or set AGENT_CHROME_NODE"}'; exit 69; fi
@@ -94,6 +118,28 @@ alive() { $CURL -s -m 2 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; }
 main_pid() { /usr/bin/pgrep -o -f -- "--user-data-dir=$DIR" 2>/dev/null; }
 lease() { touch "$STATE/$P.lease"; }
 # CDP clients other than Chrome itself — each running operator's Playwright MCP keeps one websocket open.
+# The Claude Code process that runs this operator: CLAUDE_PID, else the nearest ancestor named claude, else PPID.
+owner_pid() {
+  if [ -n "${CLAUDE_PID:-}" ] && kill -0 "$CLAUDE_PID" 2>/dev/null; then echo "$CLAUDE_PID"; return; fi
+  local p=$PPID c
+  for _ in 1 2 3 4 5 6 7 8; do
+    [ -z "$p" ] || [ "$p" -le 1 ] && break
+    c=$(/bin/ps -o comm= -p "$p" 2>/dev/null)
+    case "${c##*/}" in claude|claude-*) echo "$p"; return ;; esac
+    p=$(/bin/ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+  done
+  echo "$PPID"
+}
+# Live BLOCKED holds: $STATE/$P.wait.<pid> holding an expiry epoch; dead or expired ones are removed.
+live_waits() {
+  local f pid exp n=0 now; now=$(date +%s)
+  for f in "$STATE/$P".wait.*; do
+    [ -e "$f" ] || continue
+    pid=${f##*.}; exp=$(cat "$f" 2>/dev/null)
+    if [ -n "$exp" ] && [ "$now" -lt "$exp" ] 2>/dev/null && kill -0 "$pid" 2>/dev/null; then n=$((n + 1)); else rm -f "$f"; log "wait hold of $pid ended"; fi
+  done
+  echo "$n"
+}
 clients() { $LSOF -nP -iTCP:$PORT -sTCP:ESTABLISHED 2>/dev/null | awk 'NR>1 && $1 !~ /Google/ {print $2}' | sort -u | wc -l | tr -d ' '; }
 
 start() {
@@ -123,11 +169,25 @@ case "$CMD" in
     if ! alive; then echo "{\"ok\":false,\"profile\":\"$P\",\"running\":false,\"port\":$PORT,\"pid\":\"$(main_pid)\"}"; exit 1; fi
     n=$(clients)
     out=$("$NODE" "$HELPER" $PORT heal); rc=$?
-    echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),/"; exit $rc ;;
+    echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),\"waits\":$(live_waits),/"; exit $rc ;;
   window)
     alive || { echo "{\"ok\":false,\"error\":\"not running — run: agent-chrome.sh ensure $P\"}"; exit 1; }
     lease
     "$NODE" "$HELPER" $PORT window "$ARG" ;;
+  front)
+    alive || { echo "{\"ok\":false,\"error\":\"not running — run: agent-chrome.sh ensure $P\"}"; exit 1; }
+    lease
+    "$NODE" "$HELPER" $PORT front "$ARG" ;;
+  hold)
+    min=${ARG:-$WAIT_MIN}
+    case "$min" in ''|*[!0-9]*) echo "agent-chrome.sh: hold takes minutes" >&2; exit 64 ;; esac
+    [ "$min" -gt "$WAIT_MIN" ] && min=$WAIT_MIN
+    op=$(owner_pid); echo $(( $(date +%s) + min * 60 )) > "$STATE/$P.wait.$op"; lease
+    log "hold by $op for ${min} min"
+    echo "{\"ok\":true,\"profile\":\"$P\",\"hold_pid\":$op,\"minutes\":$min}" ;;
+  release)
+    op=$(owner_pid); rm -f "$STATE/$P.wait.$op"; lease; log "release by $op"
+    echo "{\"ok\":true,\"profile\":\"$P\",\"released\":$op}" ;;
   open)
     "$0" ensure "$P" >/dev/null || exit 1
     touch "$STATE/$P.hold"; log "open (hold)"
@@ -147,8 +207,9 @@ case "$CMD" in
       [ "$hage" -lt "$HOLD_MIN" ] && exit 0
       rm -f "$STATE/$P.hold"; lease; log "hold expired after ${hage} min"; exit 0
     fi
-    # A connected Playwright MCP client keeps a websocket to the port open for the whole agent run.
-    if [ "$(clients)" -gt 0 ] || [ ! -e "$STATE/$P.lease" ]; then lease; exit 0; fi
+    # A connected Playwright MCP client keeps a websocket to the port open for the whole agent run;
+    # an operator that stopped with BLOCKED keeps a wait hold while its Claude Code process lives.
+    if [ "$(clients)" -gt 0 ] || [ "$(live_waits)" -gt 0 ] || [ ! -e "$STATE/$P.lease" ]; then lease; exit 0; fi
     age=$(( ( $(date +%s) - $(/usr/bin/stat -f %m "$STATE/$P.lease") ) / 60 ))
     if [ "$age" -ge "$IDLE_MIN" ]; then log "idle ${age} min — stop"; "$0" stop "$P" >/dev/null; fi ;;
 esac

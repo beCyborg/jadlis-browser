@@ -95,15 +95,11 @@ API сайта и зовёт его через `fetch` изнутри стран
 1. claude plugin marketplace add https://github.com/beCyborg/jadlis-hub.git
 2. claude plugin install jadlis-browser@jadlis
 3. claude plugin list — покажи мне строку про jadlis-browser и его версию.
-4. mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
-5. Найди папку плагина: claude plugin list --json, поле installPath у jadlis-browser.
+4. Найди папку плагина: claude plugin list --json, поле installPath у jadlis-browser.
    Дальше P — эта папка.
-6. sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
-   (если файл уже есть — сначала спроси меня, перезаписывать ли его).
-7. cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
-8. chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
-9. cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
-10. ~/.claude/scripts/agent-chrome.sh --help — покажи вывод.
+5. node "$P/scripts/setup.mjs" --dry-run — покажи, какие файлы он поменяет
+   (если ~/.claude/agents/browser-operator.md уже есть — спроси меня, заменять ли его).
+6. node "$P/scripts/setup.mjs" — покажи вывод: ok, version и installed должны совпасть.
 Потом скажи мне: перезапусти Claude Code, затем запусти ~/.claude/scripts/agent-chrome.sh open
 и войди в нужные сайты в открывшемся окне.
 Для запасного пути через мой Chrome нужен токен расширения в переменной
@@ -124,21 +120,21 @@ claude plugin list
 Первая команда ничего не ставит — она добавляет маркетплейс. Ставит только вторая, и снимается
 она одной строкой: `claude plugin uninstall jadlis-browser@jadlis --keep-data`.
 
-Дальше — агент и профиль Chrome. Плагин несёт их файлами, на место их кладёшь ты один раз.
+Дальше — агент и профиль Chrome. Плагин несёт их файлами, на место их кладёт одна команда.
 `$P` — папка плагина: её показывает `claude plugin list --json`, поле `installPath`.
 
 ```
-mkdir -p ~/.claude/agents ~/.claude/scripts ~/.config/jadlis
-sed "s#{{HOME}}#$HOME#g" "$P/assets/browser-operator.md.template" > ~/.claude/agents/browser-operator.md
-cp "$P/scripts/agent-chrome.sh" "$P/scripts/agent-chrome-cdp.mjs" ~/.claude/scripts/
-chmod +x ~/.claude/scripts/agent-chrome.sh ~/.claude/scripts/agent-chrome-cdp.mjs
-cp -n "$P/scripts/agent-chrome.conf.example" ~/.config/jadlis/agent-chrome.conf
+node "$P/scripts/setup.mjs"
 ```
 
-`sed` подставляет путь к домашней папке: файл агента сам переменные не раскрывает. В
+Она копирует скрипты в `~/.claude/scripts/`, собирает агента `~/.claude/agents/browser-operator.md`
+с блоком `pw-<имя>` на каждый профиль, ставит службу `com.jadlis.agent-chrome` и печатает версию,
+которая стоит теперь. Заменённый файл остаётся рядом как `<имя>.bak-<время>`. В
 `~/.config/jadlis/agent-chrome.conf` по умолчанию один профиль `agent=9333`. Нужен ещё профиль —
-добавь строку `имя=порт` и такой же блок `pw-<имя>` с этим портом в файл агента. Профиль по
-умолчанию задаёт `BROWSER_PROFILE` в общем файле `~/.config/jadlis/agent.conf`. Перезапусти
+добавь строку `имя=порт` и запусти setup ещё раз. Профиль по умолчанию задаёт `BROWSER_PROFILE` в
+общем файле `~/.config/jadlis/agent.conf`. Там же `BROWSER_KEEPALIVE="<имя>"` держит профиль
+запущенным всегда, а `BROWSER_AUTO_SETUP="yes"` сам повторяет setup после каждого обновления
+плагина. Перезапусти
 Claude Code и открой окно профиля: `~/.claude/scripts/agent-chrome.sh open`. В этом окне один раз
 войди в нужные сайты. Для паролей поставь плагин jadlis-secrets: он даёт `secret-relay.py` и
 `op-agent.sh`.
@@ -185,8 +181,8 @@ Claude Code и открой окно профиля: `~/.claude/scripts/agent-ch
 
 **Проверено там, где я работаю:** мой Mac, мой Chrome. Связка `@playwright/mcp@0.0.80`
 и расширение-мост прогнаны по тест-матрице `skills/browser/TESTS.md` 01.09.2026; пин поднят
-до 0.0.83 30.09.2026. Профили агента прогнаны по той же матрице 07.10.2026. Пин поднимется, когда
-выйдут исправления microsoft/playwright#42936 и #43075. Проверено только на macOS; про другие
+до 0.0.83 30.09.2026. Профили агента прогнаны по той же матрице 07.10.2026. С версии 3.1.0 пин — 0.0.84:
+он закрывает вкладки, упавшие до подключения по CDP. Проверено только на macOS; про другие
 системы сказать нечего.
 
 **Условия использования.** Лицензии нет: все права сохранены за автором. Читать и
@@ -201,6 +197,9 @@ claude plugin marketplace update jadlis
 claude plugin update jadlis-browser@jadlis
 claude plugin list
 ```
+
+Скрипты и агент лежат вне плагина, поэтому после обновления запусти `node "$P/scripts/setup.mjs"`
+(или включи `BROWSER_AUTO_SETUP="yes"` — тогда это сделает первая новая сессия).
 
 Переустановка, если что-то встало криво:
 
