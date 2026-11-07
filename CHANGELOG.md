@@ -2,6 +2,14 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [3.1.1] — 2026-11-07 — фоновое окно ищется по targetId / background window found by targetId
+
+### Для человека
+- Два оператора в одном профиле больше не могут перепутать свои окна: рецепт ищет окно по его номеру, а не по первому новому окну.
+
+### For agents
+- Fixed: `skills/browser/SKILL.md` «Parallel» recipe — the first call polls `ctx.pages()` for the `targetId` from `Target.createTarget` instead of `ctx.waitForEvent('page')`, which can resolve to another operator's window when two open at once (found in a two-operator run on one profile, 07.11.2026: 5/5 fields intact, no cross-tab input).
+
 ## [3.1.0] — 2026-11-07 — установщик, удержание Chrome на BLOCKED, капча, Playwright MCP 0.0.84 / installer, BLOCKED hold, CAPTCHA rule, Playwright MCP 0.0.84
 
 ### Для человека

@@ -54,11 +54,16 @@ The main session may run several operators. `ensure` reports `clients` — other
   - **Parallel** (the task says so, or `clients` > 0): open your own background window and work only through `browser_run_code_unsafe` on that page; upload with `setInputFiles`.
 
 ```js
-// first call: own background window, returns its targetId
+// first call: own background window, returns its targetId. Find the page by targetId, never by waitForEvent('page'):
+// with two operators opening windows at once that event can hand you the neighbour's page.
 async (page) => {
-  const ctx = page.context(), cdp = await ctx.browser().newBrowserCDPSession(), next = ctx.waitForEvent('page');
+  const ctx = page.context(), cdp = await ctx.browser().newBrowserCDPSession();
   const { targetId } = await cdp.send('Target.createTarget', { url: 'https://…', newWindow: true, background: true });
-  await (await next).waitForLoadState(); return targetId;
+  for (let i = 0; i < 50; i++) {
+    for (const x of ctx.pages()) { const s = await ctx.newCDPSession(x); const { targetInfo } = await s.send('Target.getTargetInfo'); await s.detach(); if (targetInfo.targetId === targetId) { await x.waitForLoadState(); return targetId; } }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return targetId;
 }
 // every later call: find the page by targetId (a URL mark like #w1 disappears after navigation)
 async (page) => {
