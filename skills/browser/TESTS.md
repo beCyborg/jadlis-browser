@@ -64,3 +64,14 @@
 Перед версионным бампом пина или правкой флагов сервера должны быть PASS.
 - Агентский профиль: connect, navigate, fill_form, click в перекрытом окне без смены фокуса, фоновое окно + run_code по targetId, `setInputFiles`, `secret-relay.py serve`, connect при выгруженной вкладке после `ensure` (после бампа на версию с microsoft/playwright#42936 — и без `ensure`).
 - Мост: tabs, navigate, find, evaluate, scoped snapshot, take_screenshot(filename), fill_form, click, wait_for-без-снапшота, close→reconnect, read-only залогиненный сайт. file_upload через мост остаётся вне гейта (известный FAIL платформы).
+
+## Приложение на профиль и переезд на Chrome Beta — прогон 2026-11-09
+
+| Capability | State | Notes |
+|---|---|---|
+| `name=port app=Google Chrome Beta` → `ensure` / `status` | PASS | Chrome/158 beta, `"app"` в `status`; строка без `app=` → Google Chrome; нет файла → `agent=9333` |
+| `app=` несуществующего приложения | PASS | `open -a` падает сразу, `ensure` → `ok:false`, rc 1 |
+| копия профиля Chrome 156 в Beta 158 без переноса | FAIL | 1434 куки → 0 |
+| перенос кук по CDP (`Storage.getCookies` → `Storage.setCookies`) | PASS | 1431 из 1431, значения совпали по хэшу; Facebook и Allegro залогинены |
+| те же куки после перезапуска Beta | PASS после правки | без «Продолжить с того же места» пропали 78 из 79 сессионных; после `settingsPrivate.setPref` — 0 потерь |
+

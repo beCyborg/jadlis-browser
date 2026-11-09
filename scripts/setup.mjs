@@ -69,9 +69,12 @@ for (const f of ['agent-chrome.sh', 'agent-chrome-cdp.mjs']) write(path.join(SCR
 
 // 2. Profile list: created from the example only when missing.
 if (read(CONF) === null) write(CONF, read(path.join(ROOT, 'scripts', 'agent-chrome.conf.example')));
+// A line is `name=port`, optionally followed by ` app=<Application name>` (agent-chrome.sh reads the app; setup needs name and port).
 const profiles = (read(CONF) ?? 'agent=9333').split('\n')
-  .filter(l => !/^\s*#/.test(l) && l.split('=').length === 2)
-  .map(l => l.replace(/\s/g, '').split('='))
+  .filter(l => !/^\s*#/.test(l))
+  .map(l => l.replace(/\s+app=.*$/, '').replace(/\s/g, ''))
+  .filter(l => l.split('=').length === 2)
+  .map(l => l.split('='))
   .filter(([n, p]) => /^[a-z0-9_-]+$/.test(n) && /^\d+$/.test(p));
 if (!profiles.length) profiles.push(['agent', '9333']);
 

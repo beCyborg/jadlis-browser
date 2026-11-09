@@ -133,7 +133,9 @@ It copies the scripts to `~/.claude/scripts/`, renders the agent `~/.claude/agen
 with one `pw-<name>` block per profile, loads the `com.jadlis.agent-chrome` job and prints the version
 that is now installed. A replaced file stays next to it as `<name>.bak-<timestamp>`.
 `~/.config/jadlis/agent-chrome.conf` holds one profile by default, `agent=9333`. Need another
-profile — add a `name=port` line and run setup again. `BROWSER_PROFILE` in the shared
+profile — add a `name=port` line and run setup again. A `name=port app=Google Chrome Beta` line runs the profile
+in another app, so the agent's windows never mix with your Chrome; moving an existing profile is described in
+`skills/browser/references/gotchas.md`. `BROWSER_PROFILE` in the shared
 `~/.config/jadlis/agent.conf` sets the default profile. There `BROWSER_KEEPALIVE="<name>"` keeps a
 profile always running, and `BROWSER_AUTO_SETUP="yes"` repeats setup after every plugin update. Optional CAPTCHA solver:
 `BROWSER_CAPTCHA_EXT="<profiles>"` where a solver extension with a key is installed, `BROWSER_CAPTCHA_API="<command>"`

@@ -9,7 +9,7 @@ You already drive a browser well. This page adds what the tools do not tell you:
 
 ## Three browsers
 
-| | `agent` (and other profiles from `agent-chrome.conf`) — agent Chrome over CDP | `user` — the user's Chrome over the extension bridge |
+| | `agent` (and other profiles from `agent-chrome.conf`) — agent Chrome over CDP, in the app its config line names (`app=`, default Google Chrome; `agent-chrome.sh status <profile>` shows it) | `user` — the user's Chrome over the extension bridge |
 |---|---|---|
 | Use for | sites the user logged into in that profile; any new login | a site logged in nowhere else, the user's history or extensions |
 | Start | `~/.claude/scripts/agent-chrome.sh ensure <profile>` | first call `browser_tabs list`; it opens a `connect.html` seed tab |
@@ -94,7 +94,7 @@ From Bash the same window: `agent-chrome.sh window <profile> [url]` prints its t
 
 - One client at a time across all sessions, and never `playwright-cli attach --extension` while it is up.
 - Open your work tab with `browser_tabs new`, then close the `connect.html` seed tab. Its URL carries the extension token — never print or log it (`token=<redacted>`). Closing the last bridge tab drops the connection; the next call reconnects.
-- A covered window freezes pointer actions. Raise the user's Chrome by pid — `tell application "Google Chrome"` reaches the newest Chrome, which is an agent profile: `osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f 'Google Chrome.app/Contents/MacOS/Google Chrome$')) to true"`. On a trusted page a JS click also works.
+- A covered window freezes pointer actions. Raise the user's Chrome by pid — `tell application "Google Chrome"` reaches the newest instance of that app, which can be an agent profile (a profile on another app, e.g. Chrome Beta, is out of its reach): `osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f 'Google Chrome.app/Contents/MacOS/Google Chrome$')) to true"`. On a trusted page a JS click also works.
 - Pages that kill the bridge: dadata.ru, spyfu.com/account, linkedin.com/messaging, account.apple.com from the seed tab, any `chrome://` URL. An extension overlay (Immersive Translate) can eat clicks → JS click. «Extension not found» usually means missing Full Disk Access (`references/gotchas.md`).
 - If Chrome itself hangs (AppleEvents time out), do not attach again — report `BLOCKED`.
 
@@ -118,4 +118,4 @@ It copies `agent-chrome.sh` and `agent-chrome-cdp.mjs` to `~/.claude/scripts/`, 
 - `BROWSER_PROFILE=<name>` picks the default profile; `PLAYWRIGHT_MCP_EXTENSION_TOKEN` in the shell environment removes the bridge's confirm dialog; jadlis-secrets adds `secret-relay.py` and `op-agent.sh` for passwords.
 - Then restart Claude Code and run `~/.claude/scripts/agent-chrome.sh open` — the user logs into their sites in that window once.
 
-Needs macOS, Google Chrome, Node.js 22+ (`npx`, global `WebSocket`).
+Needs macOS, Google Chrome (or the app a profile names with `app=`), Node.js 22+ (`npx`, global `WebSocket`).

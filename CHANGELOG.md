@@ -2,6 +2,18 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [3.3.0] — 2026-11-09 — приложение на профиль / app per profile
+
+### Для человека
+- Профиль агента может жить в другом приложении, например в Chrome Beta: строка `имя=порт app=Google Chrome Beta` в `agent-chrome.conf`. Тогда окна агента и твой Chrome — разные программы. Строка без `app=` работает как раньше.
+- Описан переезд готового профиля на Beta без повторного входа: куки переносятся через порт отладки, а «Продолжить с того же места» включается заново.
+
+### For agents
+- Added: `scripts/agent-chrome.sh` — optional ` app=<Application name>` after `name=port` in `agent-chrome.conf` (default `Google Chrome`); `start()` runs `open -a "$APP"` and fails at once when the app is missing; `status` reports `"app"`; `profiles` still prints `name=port`.
+- Changed: `scripts/setup.mjs` drops the ` app=…` tail before parsing (an older setup would have skipped such a line).
+- Changed: `references/gotchas.md` — the Chrome Beta entry now gives the move: one Node process keeps `Storage.getCookies` in memory across `stop` → `app=` → `ensure` → `Storage.setCookies`; Beta resets protected prefs signed by stable Chrome (`session.restore_on_startup` → 5, 78 of 79 session cookies lost on the first restart) — set it back through `chrome.settingsPrivate.setPref` on `chrome://settings/onStartup`. AppleScript entry: a Beta profile is out of reach of `tell application "Google Chrome"`.
+- Changed: `SKILL.md` profile table, bridge raise note and requirements mention the per-profile app; `agent-chrome.conf.example` shows `app=`.
+
 ## [3.2.0] — 2026-11-09 — реестр входов, чистый контекст, капча только с решателем / login registry, clean context, CAPTCHA gated on a solver
 
 ### Для человека

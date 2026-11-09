@@ -1,14 +1,15 @@
 #!/bin/bash
 # agent-chrome.sh — the agent's own Chrome profiles with a CDP port on 127.0.0.1 (jadlis-browser).
 #   Install: copy this file and agent-chrome-cdp.mjs to ~/.claude/scripts/, chmod +x both.
-#   Profiles and ports come from ~/.config/jadlis/agent-chrome.conf (AGENT_CHROME_CONF overrides), one `name=port`
-#   per line. No config file → one built-in profile `agent=9333`.
+#   Profiles and ports come from ~/.config/jadlis/agent-chrome.conf (AGENT_CHROME_CONF overrides), one
+#   `name=port [app=<Application name>]` per line; no `app=` → "Google Chrome" (e.g. `work=9334 app=Google Chrome Beta`).
+#   No config file → one built-in profile `agent=9333`.
 #   Default profile (no profile argument): BROWSER_PROFILE from ~/.config/jadlis/agent.conf, else `agent`.
 #   Each profile is a separate Chrome instance with its own data dir under
 #   ~/Library/Application Support/Jadlis Agent Chrome/<profile>; the user's own Chrome is never touched.
 # Usage: agent-chrome.sh {ensure|status|stop|window [url]|front [targetId]|open|hold [min]|release|idle-stop} [profile]
 #        agent-chrome.sh profile    print the default profile
-#        agent-chrome.sh profiles   print the configured profiles as name=port
+#        agent-chrome.sh profiles   print the configured profiles as name=port (the app is in `status`)
 #        agent-chrome.sh watch      for launchd: keep BROWSER_KEEPALIVE profiles up, idle-stop the others
 #        agent-chrome.sh version    the jadlis-browser version that installed this copy (setup stamp)
 #        agent-chrome.sh --help
@@ -26,7 +27,7 @@
 #              and no live BLOCKED hold is set; run it every few minutes from launchd (`watch` does)
 #   Keep-alive: BROWSER_KEEPALIVE="name1 name2" in agent.conf — `watch` starts those profiles when they are down
 #              and never idle-stops them.
-# Needs: macOS, Google Chrome, Node.js 22+ (global WebSocket). Binary paths are resolved explicitly: launchd gives a minimal PATH.
+# Needs: macOS, Google Chrome (or the app named per profile), Node.js 22+ (global WebSocket). Binary paths are resolved explicitly: launchd gives a minimal PATH.
 set -u
 
 USAGE="usage: agent-chrome.sh {ensure|status|stop|window [url]|front [targetId]|open|hold [min]|release|idle-stop} [profile]
@@ -57,13 +58,25 @@ WAIT_MIN=${AGENT_CHROME_WAIT_MIN:-1440}
 CONF=${AGENT_CHROME_CONF:-$HOME/.config/jadlis/agent-chrome.conf}
 AGENT_CONF=${JADLIS_AGENT_CONF:-$HOME/.config/jadlis/agent.conf}
 
-# name=port lines of the profile config, comments and blanks dropped; built-in default when the file is missing.
-profiles() {
+# Profile config as `name=port<TAB>app` lines (app may be empty), comments and blanks dropped; built-in default when
+# the file is missing.
+conf_lines() {
   if [ -r "$CONF" ]; then
-    awk -F= '$0 !~ /^[[:space:]]*#/ && NF == 2 { gsub(/[[:space:]]/, ""); if ($1 != "") print $1 "=" $2 }' "$CONF"
+    awk '$0 !~ /^[[:space:]]*#/ && $0 ~ /=/ {
+      line = $0; app = ""; i = index(line, "app=")
+      if (i > 1) { app = substr(line, i + 4); line = substr(line, 1, i - 1) }
+      sub(/^[[:space:]]+/, "", app); sub(/[[:space:]]+$/, "", app); gsub(/[[:space:]]/, "", line)
+      if (split(line, a, "=") == 2 && a[1] != "") print a[1] "=" a[2] "\t" app
+    }' "$CONF"
   else
-    echo "agent=9333"
+    printf 'agent=9333\t\n'
   fi
+}
+profiles() { conf_lines | cut -f1; }
+# The application that runs a profile: `app=` of its config line, else Google Chrome.
+profile_app() {
+  local a; a=$(conf_lines | awk -F'\t' -v p="$1" '{ split($1, n, "=") } n[1] == p { print $2; exit }')
+  echo "${a:-Google Chrome}"
 }
 default_profile() {
   local p=""
@@ -104,6 +117,7 @@ case "$PORT" in
   ''|*[!0-9]*) echo "agent-chrome.sh: bad port '$PORT' for profile '$P' in $CONF" >&2; exit 78 ;;
 esac
 DIR="$ROOT/$P"
+APP=$(profile_app "$P")
 
 case "$CMD" in
   ensure|status|stop|window|front|open|hold|release|idle-stop) ;;
@@ -144,10 +158,11 @@ clients() { $LSOF -nP -iTCP:$PORT -sTCP:ESTABLISHED 2>/dev/null | awk 'NR>1 && $
 
 start() {
   mkdir -p "$DIR"
-  $OPEN -g -n -a "Google Chrome" --args \
+  $OPEN -g -n -a "$APP" --args \
     --user-data-dir="$DIR" --remote-debugging-port=$PORT \
     --no-first-run --no-default-browser-check \
-    --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling
+    --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling \
+    || { log "open -a \"$APP\" failed"; return 1; }
   for _ in $(seq 1 60); do alive && return 0; sleep 0.5; done
   return 1
 }
@@ -159,17 +174,17 @@ case "$CMD" in
         echo "{\"ok\":false,\"error\":\"Chrome for $P runs (pid $(main_pid)) but port $PORT does not answer — run: agent-chrome.sh stop $P\"}"
         log "ensure: process without port"; exit 1
       fi
-      log "start"
-      start || { echo "{\"ok\":false,\"error\":\"port $PORT did not come up in 30 s\"}"; log "start failed"; exit 1; }
+      log "start ($APP)"
+      start || { echo "{\"ok\":false,\"error\":\"$APP did not start or port $PORT did not come up in 30 s\"}"; log "start failed"; exit 1; }
     fi
     lease; n=$(clients)
     out=$("$NODE" "$HELPER" $PORT heal | sed "s/^{/{\"profile\":\"$P\",\"clients\":$n,/"); rc=${PIPESTATUS[0]}
     echo "$out"; log "ensure $out"; exit $rc ;;
   status)
-    if ! alive; then echo "{\"ok\":false,\"profile\":\"$P\",\"running\":false,\"port\":$PORT,\"pid\":\"$(main_pid)\"}"; exit 1; fi
+    if ! alive; then echo "{\"ok\":false,\"profile\":\"$P\",\"running\":false,\"app\":\"$APP\",\"port\":$PORT,\"pid\":\"$(main_pid)\"}"; exit 1; fi
     n=$(clients)
     out=$("$NODE" "$HELPER" $PORT heal); rc=$?
-    echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),\"waits\":$(live_waits),/"; exit $rc ;;
+    echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"app\":\"$APP\",\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),\"waits\":$(live_waits),/"; exit $rc ;;
   window)
     alive || { echo "{\"ok\":false,\"error\":\"not running — run: agent-chrome.sh ensure $P\"}"; exit 1; }
     lease
