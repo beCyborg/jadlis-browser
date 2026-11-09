@@ -2,6 +2,20 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [3.2.0] — 2026-11-09 — реестр входов, чистый контекст, капча только с решателем / login registry, clean context, CAPTCHA gated on a solver
+
+### Для человека
+- Оператор знает, где каким аккаунтом ты вошёл: читает реестр `logins.md` до начала и обновляет его в конце. Нет реестра — шаг пропускается.
+- Задачу «с чистого листа» оператор делает во временном контексте без кук. Куки и входы постоянного профиля он больше не чистит.
+- Капча: без настроенного решателя оператор сразу отвечает BLOCKED и не ждёт впустую. С решателем — расширение, затем API, затем BLOCKED. hCaptcha, Arkose на LinkedIn и QR Google — всегда BLOCKED.
+- Лимит ходов оператора в шаблоне — 300 вместо 150.
+
+### For agents
+- Added: `skills/browser/SKILL.md` § «Logins and a clean slate» — read/update `~/.claude/agent-memory/browser-operator/logins.md` when it exists; «clean slate» tasks run in `browser.newContext()`; never clear cookies/storage/history of a persistent profile.
+- Changed: `skills/browser/SKILL.md` § «CAPTCHA» replaces the one-line rule — active only with `BROWSER_CAPTCHA_EXT` / `BROWSER_CAPTCHA_API` in `agent.conf`; order extension (reCAPTCHA v2 only) → API script (`recaptcha2|turnstile <url> <sitekey>` → token on stdout, exit 3 = no key) → `BLOCKED`; hCaptcha, LinkedIn Arkose, Google QR, widget-less anti-bot pages → `BLOCKED` at once; no solver extension in a profile logged into LinkedIn.
+- Added: `references/gotchas.md` — Chrome Beta 158 drops every cookie of a stable-Chrome profile (no Keychain prompt, `Failed to decrypt`), detection identical (09.11.2026).
+- Changed: `assets/browser-operator.md.template` `maxTurns` 150 → 300; READMEs list the two `BROWSER_CAPTCHA_*` keys.
+
 ## [3.1.1] — 2026-11-07 — фоновое окно ищется по targetId / background window found by targetId
 
 ### Для человека

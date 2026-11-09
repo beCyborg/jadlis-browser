@@ -135,7 +135,9 @@ that is now installed. A replaced file stays next to it as `<name>.bak-<timestam
 `~/.config/jadlis/agent-chrome.conf` holds one profile by default, `agent=9333`. Need another
 profile — add a `name=port` line and run setup again. `BROWSER_PROFILE` in the shared
 `~/.config/jadlis/agent.conf` sets the default profile. There `BROWSER_KEEPALIVE="<name>"` keeps a
-profile always running, and `BROWSER_AUTO_SETUP="yes"` repeats setup after every plugin update. Restart
+profile always running, and `BROWSER_AUTO_SETUP="yes"` repeats setup after every plugin update. Optional CAPTCHA solver:
+`BROWSER_CAPTCHA_EXT="<profiles>"` where a solver extension with a key is installed, `BROWSER_CAPTCHA_API="<command>"`
+for an API solver script; without them the operator reports a CAPTCHA as BLOCKED at once. Restart
 Claude Code and open the profile window: `~/.claude/scripts/agent-chrome.sh open`. Sign into the
 sites you need in that window once. For passwords install the jadlis-secrets plugin: it provides
 `secret-relay.py` and `op-agent.sh`.

@@ -134,7 +134,9 @@ node "$P/scripts/setup.mjs"
 добавь строку `имя=порт` и запусти setup ещё раз. Профиль по умолчанию задаёт `BROWSER_PROFILE` в
 общем файле `~/.config/jadlis/agent.conf`. Там же `BROWSER_KEEPALIVE="<имя>"` держит профиль
 запущенным всегда, а `BROWSER_AUTO_SETUP="yes"` сам повторяет setup после каждого обновления
-плагина. Перезапусти
+плагина. Решатель капчи по желанию: `BROWSER_CAPTCHA_EXT="<профили>"` — там стоит
+расширение-решатель с ключом, `BROWSER_CAPTCHA_API="<команда>"` — скрипт решения через API. Без них
+оператор сразу отвечает BLOCKED на капчу. Перезапусти
 Claude Code и открой окно профиля: `~/.claude/scripts/agent-chrome.sh open`. В этом окне один раз
 войди в нужные сайты. Для паролей поставь плагин jadlis-secrets: он даёт `secret-relay.py` и
 `op-agent.sh`.
