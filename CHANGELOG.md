@@ -2,7 +2,7 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
-## [Unreleased] — Patchright MCP, реклама и баннеры cookies, запуск без фокуса / Patchright MCP, ads and cookie banners, no-focus start
+## [4.0.0] — 2026-11-10 — Patchright MCP, реклама и баннеры cookies, запуск без фокуса / Patchright MCP, ads and cookie banners, no-focus start
 
 ### Для человека
 - Профили агента теперь ведёт Patchright MCP: те же инструменты, но три детектора утечек CDP больше не видят автоматизацию. На капчах и проверках Cloudflare итог тот же, что у Playwright MCP. Мост в твой Chrome остаётся на Playwright MCP. Обновился — запусти `setup.mjs` ещё раз (или дождись `BROWSER_AUTO_SETUP`): он поставит рантайм Patchright и пересоберёт файл агента. Ручные правки в этом файле пропадут, копия останется рядом как `.bak-<время>`.
