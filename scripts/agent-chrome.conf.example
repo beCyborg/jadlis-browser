@@ -3,6 +3,10 @@
 # Another profile: add a line here AND a matching pw-<name> server (same port) in ~/.claude/agents/browser-operator.md.
 # No `app=` → the profile runs in Google Chrome. `app=Google Chrome Beta` keeps the agent apart from your own Chrome;
 # moving an existing profile to another app needs its cookies carried over (references/gotchas.md).
+# Optional ` ext=<folder>[:<folder>…]`: unpacked extension folders (absolute paths) that agent-chrome.sh loads into the
+# profile over CDP after every start — Chrome drops such an extension on restart, its settings stay (the id follows the
+# folder path, so keep the path stable). A missing folder is a warning in the JSON, the profile still starts.
 # The default profile is BROWSER_PROFILE in ~/.config/jadlis/agent.conf (or `agent`).
 agent=9333
 # work=9334 app=Google Chrome Beta
+# work=9334 app=Google Chrome Beta ext=/Users/you/.local/share/jadlis-browser/ubol/current

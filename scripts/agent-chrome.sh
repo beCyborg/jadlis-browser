@@ -2,8 +2,13 @@
 # agent-chrome.sh — the agent's own Chrome profiles with a CDP port on 127.0.0.1 (jadlis-browser).
 #   Install: copy this file and agent-chrome-cdp.mjs to ~/.claude/scripts/, chmod +x both.
 #   Profiles and ports come from ~/.config/jadlis/agent-chrome.conf (AGENT_CHROME_CONF overrides), one
-#   `name=port [app=<Application name>]` per line; no `app=` → "Google Chrome" (e.g. `work=9334 app=Google Chrome Beta`).
-#   No config file → one built-in profile `agent=9333`.
+#   `name=port [app=<Application name>] [ext=<folder>[:<folder>…]]` per line; no `app=` → "Google Chrome"
+#   (e.g. `work=9334 app=Google Chrome Beta`). `ext=` names unpacked extension folders (absolute paths) that the
+#   helper loads over CDP after every start and in ensure/status when the profile runs without them; a missing
+#   folder is a warning in the JSON "ext" list, never a failed start. No config file → one built-in profile `agent=9333`.
+#   Start without focus: Chrome starts with --no-startup-window (macOS does not make a windowless app frontmost),
+#   then the helper opens the first window in the background over CDP; that window also runs Chrome's session
+#   restore when «Continue where you left off» is on. Only `open` and `front` raise a window on purpose.
 #   Default profile (no profile argument): BROWSER_PROFILE from ~/.config/jadlis/agent.conf, else `agent`.
 #   Each profile is a separate Chrome instance with its own data dir under
 #   ~/Library/Application Support/Jadlis Agent Chrome/<profile>; the user's own Chrome is never touched.
@@ -13,8 +18,9 @@
 #        agent-chrome.sh watch      for launchd: keep BROWSER_KEEPALIVE profiles up, idle-stop the others
 #        agent-chrome.sh version    the jadlis-browser version that installed this copy (setup stamp)
 #        agent-chrome.sh --help
-#   ensure     start if not running, wait for the port, heal discarded/crashed tabs; "clients" = other operators connected now
-#   status     port, tabs, healed tabs (heals like ensure, never starts Chrome)
+#   ensure     start if not running (no focus change), wait for the port, heal discarded/crashed tabs, load `ext=`;
+#              "clients" = other operators connected now, "boot.restored" = tabs session restore brought back
+#   status     port, tabs, healed tabs, `ext=` (heals and loads like ensure, never starts Chrome)
 #   stop       Browser.close over CDP (Chrome flushes cookies), kill only as fallback
 #   window     open a background window for a parallel operator, print its targetId
 #   front      bring one tab (targetId, default the first) and its window to the front — e.g. a CAPTCHA the solver
@@ -58,18 +64,27 @@ WAIT_MIN=${AGENT_CHROME_WAIT_MIN:-1440}
 CONF=${AGENT_CHROME_CONF:-$HOME/.config/jadlis/agent-chrome.conf}
 AGENT_CONF=${JADLIS_AGENT_CONF:-$HOME/.config/jadlis/agent.conf}
 
-# Profile config as `name=port<TAB>app` lines (app may be empty), comments and blanks dropped; built-in default when
-# the file is missing.
+# Profile config as `name=port<TAB>app<TAB>ext` lines (app and ext may be empty), comments and blanks dropped;
+# built-in default when the file is missing. The keys `app=` and `ext=` start after whitespace, in any order; a value
+# runs to the next key or the end of the line (app names and folders may hold spaces); several `ext=` join with `:`.
 conf_lines() {
   if [ -r "$CONF" ]; then
     awk '$0 !~ /^[[:space:]]*#/ && $0 ~ /=/ {
-      line = $0; app = ""; i = index(line, "app=")
-      if (i > 1) { app = substr(line, i + 4); line = substr(line, 1, i - 1) }
-      sub(/^[[:space:]]+/, "", app); sub(/[[:space:]]+$/, "", app); gsub(/[[:space:]]/, "", line)
-      if (split(line, a, "=") == 2 && a[1] != "") print a[1] "=" a[2] "\t" app
+      line = $0; app = ""; ext = ""; rest = ""
+      if (match(line, /[[:space:]](app|ext)=/)) { rest = substr(line, RSTART + 1); line = substr(line, 1, RSTART - 1) }
+      while (rest != "") {
+        key = substr(rest, 1, 3); rest = substr(rest, 5)
+        if (match(rest, /[[:space:]](app|ext)=/)) { val = substr(rest, 1, RSTART - 1); rest = substr(rest, RSTART + 1) }
+        else { val = rest; rest = "" }
+        sub(/^[[:space:]]+/, "", val); sub(/[[:space:]]+$/, "", val)
+        if (key == "app") app = val
+        else if (val != "") ext = (ext == "" ? val : ext ":" val)
+      }
+      gsub(/[[:space:]]/, "", line)
+      if (split(line, a, "=") == 2 && a[1] != "") print a[1] "=" a[2] "\t" app "\t" ext
     }' "$CONF"
   else
-    printf 'agent=9333\t\n'
+    printf 'agent=9333\t\t\n'
   fi
 }
 profiles() { conf_lines | cut -f1; }
@@ -78,6 +93,8 @@ profile_app() {
   local a; a=$(conf_lines | awk -F'\t' -v p="$1" '{ split($1, n, "=") } n[1] == p { print $2; exit }')
   echo "${a:-Google Chrome}"
 }
+# Extension folders of a profile (`ext=`), `:`-separated; empty when the line has none.
+profile_ext() { conf_lines | awk -F'\t' -v p="$1" '{ split($1, n, "=") } n[1] == p { print $3; exit }'; }
 default_profile() {
   local p=""
   [ -r "$AGENT_CONF" ] && p=$(awk -F= '$1 == "BROWSER_PROFILE" { sub(/^[^=]*=/, ""); gsub(/["\047[:space:]]/, ""); print; exit }' "$AGENT_CONF")
@@ -118,6 +135,9 @@ case "$PORT" in
 esac
 DIR="$ROOT/$P"
 APP=$(profile_app "$P")
+EXT=$(profile_ext "$P")
+# Helper flags for heal: --ext only when the profile names extension folders (no `ext=` → today's behaviour).
+EXTARGS=(); [ -n "$EXT" ] && EXTARGS=(--ext "$EXT")
 
 case "$CMD" in
   ensure|status|stop|window|front|open|hold|release|idle-stop) ;;
@@ -156,11 +176,13 @@ live_waits() {
 }
 clients() { $LSOF -nP -iTCP:$PORT -sTCP:ESTABLISHED 2>/dev/null | awk 'NR>1 && $1 !~ /Google/ {print $2}' | sort -u | wc -l | tr -d ' '; }
 
+# --no-startup-window: Chrome comes up with no window, so it never becomes the frontmost app (with a startup window
+# it takes the focus even under `open -g`; `open -j` still gives it ~2 s). `heal --boot` opens the first window.
 start() {
   mkdir -p "$DIR"
   $OPEN -g -n -a "$APP" --args \
     --user-data-dir="$DIR" --remote-debugging-port=$PORT \
-    --no-first-run --no-default-browser-check \
+    --no-first-run --no-default-browser-check --no-startup-window \
     --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling \
     || { log "open -a \"$APP\" failed"; return 1; }
   for _ in $(seq 1 60); do alive && return 0; sleep 0.5; done
@@ -169,6 +191,7 @@ start() {
 
 case "$CMD" in
   ensure)
+    boot=()
     if ! alive; then
       if [ -n "$(main_pid)" ]; then
         echo "{\"ok\":false,\"error\":\"Chrome for $P runs (pid $(main_pid)) but port $PORT does not answer — run: agent-chrome.sh stop $P\"}"
@@ -176,14 +199,15 @@ case "$CMD" in
       fi
       log "start ($APP)"
       start || { echo "{\"ok\":false,\"error\":\"$APP did not start or port $PORT did not come up in 30 s\"}"; log "start failed"; exit 1; }
+      boot=(--boot)
     fi
     lease; n=$(clients)
-    out=$("$NODE" "$HELPER" $PORT heal | sed "s/^{/{\"profile\":\"$P\",\"clients\":$n,/"); rc=${PIPESTATUS[0]}
+    out=$("$NODE" "$HELPER" $PORT heal ${boot[@]+"${boot[@]}"} ${EXTARGS[@]+"${EXTARGS[@]}"} | sed "s/^{/{\"profile\":\"$P\",\"clients\":$n,/"); rc=${PIPESTATUS[0]}
     echo "$out"; log "ensure $out"; exit $rc ;;
   status)
     if ! alive; then echo "{\"ok\":false,\"profile\":\"$P\",\"running\":false,\"app\":\"$APP\",\"port\":$PORT,\"pid\":\"$(main_pid)\"}"; exit 1; fi
     n=$(clients)
-    out=$("$NODE" "$HELPER" $PORT heal); rc=$?
+    out=$("$NODE" "$HELPER" $PORT heal ${EXTARGS[@]+"${EXTARGS[@]}"}); rc=$?
     echo "$out" | sed "s/^{/{\"profile\":\"$P\",\"running\":true,\"app\":\"$APP\",\"port\":$PORT,\"clients\":$n,\"hold\":$( [ -e "$STATE/$P.hold" ] && echo true || echo false ),\"waits\":$(live_waits),/"; exit $rc ;;
   window)
     alive || { echo "{\"ok\":false,\"error\":\"not running — run: agent-chrome.sh ensure $P\"}"; exit 1; }

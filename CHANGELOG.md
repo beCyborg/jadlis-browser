@@ -2,6 +2,19 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [Unreleased] — запуск без фокуса, расширения при старте / no-focus start, extensions at start
+
+### Для человека
+- Профиль агента запускается и перезапускается, не забирая фокус: окно, в котором ты работаешь, остаётся впереди. Вкладки прошлой сессии и сессионные куки возвращаются, как раньше, если в профиле включено «Продолжить с того же места».
+- Строка профиля может назвать папки распакованных расширений: `ext=<папка>`. Скрипт загружает их после каждого старта — например, uBlock Origin Lite. Нет папки — предупреждение, профиль всё равно стартует.
+
+### For agents
+- Changed: `scripts/agent-chrome.sh` `start()` adds `--no-startup-window` (a windowless Chrome never becomes the frontmost app; plain `open -g` let the startup window take the focus, `open -j` still gave it ~2 s); `ensure` after a start calls `agent-chrome-cdp.mjs heal --boot`, which opens the first window with `Target.createTarget {newWindow, background}` — that window runs Chrome's session restore — and closes its blank page when tabs came back. `ensure` reports `"boot":{"restored":N}`.
+- Added: optional ` ext=<folder>[:<folder>…]` on a profile line, in any order with `app=` (several `ext=` join); `ensure` and `status` pass it as `heal --ext`, which reads `Extensions.getExtensions` and calls `Extensions.loadUnpacked` for folders the profile lacks; JSON `"ext":[{"id","dir","loaded":true|false,"new"?,"enabled"?,"warning"?}]`; no `ext=` → no `"ext"` key.
+- Added: `heal` opens a background `about:blank` window when a running profile has no page (Playwright would open one with `context.newPage()`, which raises the window); reported as `"opened"`.
+- Fixed: `scripts/setup.mjs` dropped a profile whose line had `ext=` before `app=` (it stripped only ` app=…`).
+- Added: `tests/` — `node --test tests/`: config parser, `profiles`, `status` JSON, `heal --boot` / `--ext` against a fake DevTools port (`tests/fake-cdp.mjs`), no Chrome needed.
+
 ## [3.3.0] — 2026-11-09 — приложение на профиль / app per profile
 
 ### Для человека
