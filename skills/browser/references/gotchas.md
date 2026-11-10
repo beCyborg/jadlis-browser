@@ -19,7 +19,8 @@ Playwright MCP (Extension Mode) на preflight сканирует `~/Library/App
 
 ## Агентские профили (CDP, с 3.0.0)
 
-**Подключение висит без ошибки — выгруженная или упавшая вкладка в профиле**
+**Подключение висит без ошибки — выгруженная или упавшая вкладка в профиле (только `@playwright/mcp`)**
+Patchright MCP (драйвер по умолчанию с 4.0.0) на выгруженной вкладке не виснет: 3 подключения из 3 за ~50 мс, у `@playwright/mcp` 0.0.83 — 0 из 3 (поток P, 10.11.2026). Ниже — для `BROWSER_DRIVER="playwright"` и моста.
 `@playwright/mcp` 0.0.83 зависает в `connectOverCDP`, если в профиле есть вкладка, выгруженная Chrome (Memory Saver, chrome://discards) или с упавшим рендерером (playwright-mcp#1757; исправления microsoft/playwright#42936, #43075 ещё не в пине). Воспроизведено 07.10.2026: одна выгруженная вкладка → таймаут 25 с. `agent-chrome.sh ensure|status <profile>` находит такие вкладки (attach + `Runtime.evaluate` с таймаутом), перезагружает их в фоне, а не ожившие закрывает. В профилях выключать «Экономию памяти».
 
 **`ensure` отвечает «runs but port does not answer»**
@@ -32,6 +33,12 @@ Playwright MCP (Extension Mode) на preflight сканирует `~/Library/App
 
 **AppleScript попадает не в тот Chrome**
 У экземпляров одного приложения один bundle id (`com.google.Chrome`); `tell application "Google Chrome"` адресует новейший экземпляр — часто профиль агента. Профиль на Chrome Beta (`com.google.Chrome.beta`) этой командой не достаётся, профиль на обычном Chrome — по-прежнему да. Chrome пользователя поднимать по pid процесса без `--user-data-dir`: `pgrep -f 'Google Chrome.app/Contents/MacOS/Google Chrome$'`. Ссылки из других приложений (07.10.2026, три экземпляра) уходят в Chrome пользователя.
+
+**Patchright: любой init-скрипт драйвера виден детекторам**
+10.11.2026, живой профиль, bot-detector.rebrowser.net: при `--init-script` в строке сервера сигнал `documentInterception` красный — документ пришёл без сетевого протокола (`nextHopProtocol` пустой). Patchright сам отдаёт страницу через `Fetch.fulfillRequest`, как только задан хоть один `addInitScript`. Без init-скрипта тот же сигнал зелёный в 21 записи из 21 (поток M). Поэтому отказ от cookies работает как расширение, а не как `--init-script`, а сборщик консоли — только для отладки на своих страницах.
+
+**Распакованное расширение в профиль агента — только через порт отладки**
+Брендовый Chrome 137+ игнорирует `--load-extension`. Политика `ExtensionInstallForcelist`, записанная `defaults write`, на Mac без MDM не читается (10.11.2026: Chrome показал «Не задано»). Работает `Extensions.loadUnpacked` по CDP (Chrome 158), но Chrome стирает такое расширение при перезапуске. Поэтому `agent-chrome.sh` грузит папки из `ext=` после каждого старта; настройки сайтов переживают перезапуск, потому что id расширения выводится из пути папки — путь не менять.
 
 ## Перенос входа из своего Chrome в профиль агента
 

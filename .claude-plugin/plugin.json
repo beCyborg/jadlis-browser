@@ -3,7 +3,7 @@
   "name": "jadlis-browser",
   "version": "3.3.0",
   "displayName": "Browser — Chrome агента и твой Chrome через Playwright MCP",
-  "description": "Скилл, шаблон агента browser-operator, скрипт agent-chrome.sh и установщик setup.mjs: свой профиль Chrome агента по CDP-порту — в фоне, параллельно, с загрузкой файлов, с удержанием на BLOCKED и всегда включённым основным профилем; твой Chrome через мост расширения — запасной путь; фоновый playwright-cli для публичных страниц.",
+  "description": "Скилл, шаблон агента browser-operator, скрипт agent-chrome.sh и установщик setup.mjs: свой профиль Chrome агента по CDP-порту через Patchright MCP — в фоне, без захвата фокуса, параллельно, по желанию без рекламы и с отказом от баннеров cookies, с загрузкой файлов, с удержанием на BLOCKED и всегда включённым основным профилем; твой Chrome через мост расширения — запасной путь; фоновый playwright-cli для публичных страниц.",
   "author": {
     "name": "Be Cyborg"
   },

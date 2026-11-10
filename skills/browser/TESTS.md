@@ -1,6 +1,6 @@
-# TESTS.md — browser (Playwright MCP: agent Chrome over CDP + the user's Chrome over the extension bridge)
+# TESTS.md — browser (Patchright MCP: agent Chrome over CDP + Playwright MCP: the user's Chrome over the extension bridge)
 
-Живая зависимость: `@playwright/mcp@0.0.83` + Chrome 154. Агентские профили: `scripts/agent-chrome.sh` (в прогоне два профиля на портах 9333/9334). Мост: расширение Playwright MCP Bridge ≥0.3.0 (protocol v2).
+Живая зависимость с 4.0.0: агентские профили — Patchright MCP из `patchright-core` (точная версия — константа в `scripts/setup.mjs`), мост — `@playwright/mcp` (там же); Chrome Beta 158. Матрица 07.10.2026 ниже прогнана на `@playwright/mcp@0.0.83` + Chrome 154. Агентские профили: `scripts/agent-chrome.sh` (в прогоне два профиля на портах 9333/9334). Мост: расширение Playwright MCP Bridge ≥0.3.0 (protocol v2).
 Скрипты тестов 07.10.2026 — разовые, в репозиторий не входят (stdio MCP-клиент `mcp.mjs`).
 
 ## Агентские профили (CDP, `--cdp-endpoint`) — прогон 2026-10-07
@@ -62,7 +62,7 @@
 ## Gate
 
 Перед версионным бампом пина или правкой флагов сервера должны быть PASS.
-- Агентский профиль: connect, navigate, fill_form, click в перекрытом окне без смены фокуса, фоновое окно + run_code по targetId, `setInputFiles`, `secret-relay.py serve`, connect при выгруженной вкладке после `ensure` (после бампа на версию с microsoft/playwright#42936 — и без `ensure`).
+- Агентский профиль: connect, navigate, fill_form, click в перекрытом окне без смены фокуса, фоновое окно + run_code по targetId, `setInputFiles`, `secret-relay.py serve` и `receive`, connect при выгруженной вкладке (Patchright — без `ensure`; `@playwright/mcp` — после `ensure`), главный мир через `page.evaluate(fn, arg, undefined, false)`, сборщик консоли через `addInitScript`, детектор утечек CDP без init-скрипта.
 - Мост: tabs, navigate, find, evaluate, scoped snapshot, take_screenshot(filename), fill_form, click, wait_for-без-снапшота, close→reconnect, read-only залогиненный сайт. file_upload через мост остаётся вне гейта (известный FAIL платформы).
 
 ## Приложение на профиль и переезд на Chrome Beta — прогон 2026-11-09
@@ -98,3 +98,29 @@ Chrome Beta 158, тестовые профили на портах 9337/9338 (+ 
 | `ext=` с отсутствующей папкой и относительным путём | PASS | `loaded:false` + `warning`, `ok:true`, rc 0, остальные папки грузятся |
 | `open`, `front` | NOT-TESTED | не менялись; поднимают окно намеренно |
 | падение Chrome → `ensure` | NOT-TESTED | восстановление после аварии не проверялось |
+
+## Patchright MCP, реклама и отказ от cookies — прогон 2026-11-10
+
+Таблицы здесь не повторяются: они лежат в отчётах потоков, сырые данные — в `~/.claude/jadlis/browser-bench/20261110-patchright/` и `…/20261110-adblock/` (машина автора). Patchright MCP 1.64.3 против `@playwright/mcp@0.0.83`, Chrome Beta 158, тестовые профили 9337/9338, затем живой профиль. Автотесты: `node --test tests/` (21 PASS: `setup.mjs`, `agent-ext.mjs`, Chrome и сеть не нужны).
+
+| Capability | State | Где смотреть |
+|---|---|---|
+| набор инструментов и флаги | PASS | те же 25 имён, `--help` совпал; отчёт потока P, строки 1, 1a |
+| выгруженная вкладка | PASS (лучше) | 3/3 за ~50 мс, у 0.0.83 — 0/3 (таймаут 30 с); P, строка 2b |
+| консоль страницы | FAIL → обход | `console.*` и исключения не приходят, только сетевые ошибки; сборщик через `addInitScript` вернул все события; P, строка 3; живой прогон, шаг 4 |
+| `browser_evaluate` в главном мире | FAIL → обход | изолированный мир; `page.evaluate(fn, arg, undefined, false)` вернул глобал и callback; P, строка 5; живой прогон, шаги 3, 3a |
+| init-скрипты на `about:blank` и `data:` | PASS | работают по CDP; P, строка 4 |
+| загрузка файла, скриншот, сеть, диалоги, фокус, два клиента, `route`, чистый контекст | PASS | как у 0.0.83; P, строки 6a–11 |
+| `secret-relay.py serve` и `receive` | PASS | оба сервера, оба режима; P, «Проверки»; живой прогон, шаг 8 |
+| Turnstile non-interactive и invisible | PASS | все пять режимов 3/3; отчёт потока M |
+| Turnstile managed | PASS после одного доверенного клика | клик по координатам, токен 752 символа, при любом драйвере; M, раунд 5 |
+| полностраничная проверка Cloudflare | как у 0.0.83 | scrapingcourse проходит сама, заставка nopecha просит клик при любом драйвере; M |
+| sannysoft, reCAPTCHA v3 | как у 0.0.83 | 31/31, 0.9; M |
+| детекторы утечек CDP (rebrowser, deviceandbrowserinfo, Brotector) | PASS (лучше) | Patchright чист, 0.0.83 пойман на всех трёх; M |
+| детектор при `--init-script` | FAIL | `documentInterception` красный, без init-скрипта зелёный 21/21; живой прогон, «Что не так» — поэтому отказ от cookies стал расширением |
+| баннер cookies: отказ | PASS | onet, t-online, sinoptik — отказ за 0.7–2.1 с на обоих драйверах; отчёт adblock-A; живой прогон, шаг 6 |
+| uBOL в профиле: режим Optimal, режим сайта | PASS | живой прогон, шаг 7 |
+| `setup.mjs`: настоящая установка в пустой HOME | PASS | рантайм 1.64.3 с lock-файлом, uBOL — sha256 совпал с digest релиза, расширение собрано, `ext=` в обеих строках; повтор — `changed: []`; отчёт R4 |
+| фокус при работе Patchright | PASS | живой прогон, шаг 2: впереди терминал до, во время и после |
+
+Отчёты: `~/.claude/jadlis/cld/reports/20261110-patchright-P.md` (матрица), `…-patchright-M.md` (детекторы и капчи), `…-patchright-live-jadlis.md` (живой профиль), `…-launcher-L.md` (запуск без фокуса), `…-adblock-A.md` (сборка autoconsent), `…-patchright-R4.md` (плагин).

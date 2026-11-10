@@ -52,7 +52,7 @@ The three browsers:
 | | the agent's profile `agent` | your Chrome | background Chrome |
 |---|---|---|---|
 | What lives there | sites you signed into in that profile | a site you are signed into only on your side | your own landings and public JS pages |
-| Connection | Playwright MCP over CDP port 127.0.0.1:9333 | Playwright MCP through the bridge extension | `playwright-cli`, no window |
+| Connection | Patchright MCP over CDP port 127.0.0.1:9333 | Playwright MCP through the bridge extension | `playwright-cli`, no window |
 | Lifetime | started on demand; optionally `idle-stop` from launchd or cron stops it after 30 min without clients | kept open by you | a session closes itself after 1 h idle |
 | Focus | stays with you | Chrome is raised on every connect | no window |
 | File upload | works | does not work | works |
@@ -63,12 +63,16 @@ The agent's profiles are separate Chrome instances, each with its own user-data-
 and ports live in `~/.config/jadlis/agent-chrome.conf`, by default one line `agent=9333`. They are
 controlled by
 `~/.claude/scripts/agent-chrome.sh {ensure|status|stop|window|open|idle-stop} [profile]`.
-`ensure` starts Chrome and also heals discarded and crashed tabs: those hang `@playwright/mcp` 0.0.83
-on connect.
+`ensure` starts Chrome without taking the focus: no window comes forward, the previous tabs come back
+in background windows. It also heals discarded and crashed tabs: those hang `@playwright/mcp` on
+connect, Patchright does not hang.
 
 The `pw-agent` and `pw` servers are declared inline in the agent file
-`~/.claude/agents/browser-operator.md`, so they start only while that agent runs. All share one pin,
-`@playwright/mcp@0.0.83`, and the flags `--snapshot-mode=none`, `--console-level=error`,
+`~/.claude/agents/browser-operator.md`, so they start only while that agent runs. The agent's
+profiles run Patchright MCP from the `patchright-core` package: the same tools as Playwright MCP, but
+three CDP-leak detectors do not see it. The bridge `pw` runs `@playwright/mcp`. The versions are
+pinned in one place — the top of `scripts/setup.mjs`. All servers share the flags
+`--snapshot-mode=none`, `--console-level=error`,
 `--image-responses=omit`; the bridge adds `--extension`. The consequences show up immediately: after
 a click or a navigation the agent is blind until it asks for a read itself; no base64 screenshot arrives.
 
@@ -159,6 +163,14 @@ speaks the old protocol. Without a token the extension asks you to confirm a tab
 The token from the extension's status page removes that dialog. The plugin no longer asks for it:
 put it into the `PLAYWRIGHT_MCP_EXTENSION_TOKEN` environment variable, for example in `~/.zshenv`.
 
+**Ads and cookie banners — optional.** `node "$P/scripts/setup.mjs" --adblock` puts two extensions
+into the agent's profiles. One is uBlock Origin Lite from the official release; setup checks its
+sha256. The other answers cookie banners with a refusal; it is built from DuckDuckGo's autoconsent
+library. The profile lines get `ext=`, and `agent-chrome.sh` loads both extensions at every start.
+Without the flag setup installs neither. When a site breaks, the operator lowers the blocking on that
+site only and says so in its report. Sites without the cookie refusal —
+`~/.config/jadlis/adblock-skip-hosts.txt`.
+
 **The check.** "show me the browser tabs" → the reply lists the open tabs.
 
 ## Limits, cost, updating
@@ -171,8 +183,8 @@ all sessions. It does not block irreversible actions technically — it asks, bu
 account in its hands are yours. Arbitrary JS inside the server process (`browser_run_code_unsafe`)
 runs only code the agent wrote for the task, never code taken from a page.
 
-**What you need.** No keys and no subscriptions. You need Chrome and `npx` in the system — it starts
-the servers. You need Node.js 22 or newer. The agent `~/.claude/agents/browser-operator.md` and the script
+**What you need.** No keys and no subscriptions. You need Chrome, `npm` and `npx` in the system: `npm`
+installs the Patchright runtime, `npx` starts the bridge. You need Node.js 22 or newer. The agent `~/.claude/agents/browser-operator.md` and the script
 `~/.claude/scripts/agent-chrome.sh` come from the plugin through the steps in "Installing and the
 first run". For the fallback — the
 Playwright MCP Bridge extension 0.3.0 or newer and, optionally, the token in
@@ -188,7 +200,9 @@ sit at the bottom of the ladder.
 **Verified where I work:** my Mac, my Chrome. The `@playwright/mcp@0.0.80` and bridge-extension pair
 was run through the `skills/browser/TESTS.md` matrix on 2026-09-01; the pin moved to 0.0.83 on
 2026-09-30. The agent's profiles went through the same matrix on 2026-10-07. Since 3.1.0 the pin is 0.0.84:
-it closes tabs that crashed before the CDP connect. Verified on macOS only; about other
+it closes tabs that crashed before the CDP connect. Since 4.0.0 the agent's profiles run Patchright
+MCP 1.64.3: on 2026-11-10 it went through the matrix, CAPTCHAs and detectors, results in `TESTS.md`.
+Verified on macOS only; about other
 systems I have nothing to say.
 
 **Terms of use.** There is no license: all rights reserved by the author. You may read it and use it
@@ -206,6 +220,20 @@ claude plugin list
 
 The scripts and the agent live outside the plugin, so after an update run `node "$P/scripts/setup.mjs"`
 (or turn on `BROWSER_AUTO_SETUP="yes"` — then the first new session does it).
+
+**From 3.x to 4.0.0.** After the update setup changes three things:
+1. It installs the Patchright runtime into `~/.local/share/jadlis-browser/patchright-<version>/`. That
+   needs npm; if it fails, the profiles stay on `@playwright/mcp` and setup says why.
+2. It renders the agent file again: the profile servers now start `node` with Patchright. Hand edits
+   in that file are lost; the previous file stays next to it as `browser-operator.md.bak-<time>`.
+3. It puts `agent-ext.mjs` into `~/.claude/scripts/`.
+
+Setup leaves the profile configs alone; only `--adblock` adds `ext=`. Recipes in the operator's memory
+that read page globals through `browser_evaluate` need the main-world call — the skill's «Driver»
+section has it.
+
+Rollback: put `BROWSER_DRIVER="playwright"` into `~/.config/jadlis/agent.conf` and run setup again.
+The profiles go back to `@playwright/mcp`. For the whole previous agent file, copy its `.bak` back.
 
 A reinstall, if something landed wrong:
 
