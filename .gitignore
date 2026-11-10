@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .venv/
 *.bak*
+scripts/adblock/node_modules/
+scripts/adblock/build/

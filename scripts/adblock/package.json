@@ -1,0 +1,12 @@
+{
+  "name": "jadlis-browser-adblock",
+  "private": true,
+  "type": "module",
+  "description": "Cookie-refusal extension for the agent's Chrome profiles: DuckDuckGo autoconsent (action optOut) bundled as a MAIN-world content script. Built by build.sh.",
+  "dependencies": {
+    "@duckduckgo/autoconsent": "18.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

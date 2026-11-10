@@ -1,0 +1,12 @@
+# Hosts where the cookie-refusal extension does nothing. One host per line; subdomains are included; `#` starts a comment.
+# A frame is skipped when its own host or any ancestor frame's host matches.
+# Your copy lives in ~/.config/jadlis/adblock-skip-hosts.txt (created from this file on the first build).
+# After an edit: run build.sh again, then `node ~/.claude/scripts/agent-ext.mjs reload <profile>`.
+paypal.com
+checkout.stripe.com
+web.whatsapp.com
+# captcha and challenge frames: there is nothing to answer there, and extra code inside a captcha frame is a detection risk
+hcaptcha.com
+challenges.cloudflare.com
+recaptcha.net
+captcha-delivery.com

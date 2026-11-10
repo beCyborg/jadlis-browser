@@ -1,5 +1,6 @@
 // Tests for scripts/agent-chrome.sh (config parser, JSON of `status`) and scripts/agent-chrome-cdp.mjs (heal --boot,
-// heal --ext) against a fake DevTools port — no Chrome is started. Run: node --test tests/
+// heal --ext) against a fake DevTools port — no Chrome is started. setup.mjs and agent-ext.mjs: tests/setup.test.mjs.
+// Run: node --test tests/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -156,13 +157,4 @@ test('start line has --no-startup-window and no foreground flags', () => {
   assert.match(start, /\$OPEN -g -n -a "\$APP" --args/);
   assert.match(start, /--no-startup-window/);
   assert.doesNotMatch(start, /activate|osascript/);
-});
-
-test('setup.mjs keeps profiles whose line has ext= before app=', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'scripts/setup.mjs'), 'utf8');
-  const m = src.match(/\.map\(l => l\.replace\((\/.+?\/), ''\)\.replace\(\/\\s\/g, ''\)\)/);
-  assert.ok(m, 'profile line parser found in setup.mjs');
-  const strip = l => l.replace(eval(m[1]), '').replace(/\s/g, '');
-  assert.equal(strip('a=9335 ext=/x app=Google Chrome Beta'), 'a=9335');
-  assert.equal(strip('b=9336 app=Google Chrome Beta ext=/x'), 'b=9336');
 });
