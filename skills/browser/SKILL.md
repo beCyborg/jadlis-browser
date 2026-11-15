@@ -27,6 +27,8 @@ Which browser for which task (Mac):
 | Public pages that need JS, own landings, mobile-width screenshots | headless `playwright-cli` (`references/cli.md`) |
 | A site logged in only in the user's Chrome, or one that needs their extensions | the user's Chrome over the bridge (`mcp__pw__*`) — fallback only |
 
+**Server first, where a server profile exists.** When the operator's contract lists a server profile (a Chrome on a remote machine reached over an SSH-tunnelled CDP port, e.g. `mcp__pw-srv__*`), every task starts there and falls back to the local agent profile only on a defined failure: an anti-bot or rate-limit page (`block`), a CAPTCHA the solver could not clear (`captcha`), 2FA that needs the user's phone (`needs_device`), or the server tier not starting (`server_down`). Sites whose login exists only locally go local directly. Each attempt is logged with its tier and verdict; the contract names the log and the classifier script.
+
 ## Facts that cost time when unknown
 
 - **The focus belongs to the user.** Browser work never takes it: background windows only. `agent-chrome.sh open` and `front` raise Chrome on purpose — use them only when the user must act in that window. These raise it too, so avoid them in agent profiles: `browser_tabs new`, `browser_tabs select`, `context.newPage()`. These do not: a start through `ensure` (Chrome starts without a window; the previous tabs come back in background windows), a background window made over CDP (recipe below), and navigate, click, fill, type, upload and run_code in an existing tab.
