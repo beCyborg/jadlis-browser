@@ -27,13 +27,15 @@ async function confLines(text) {
   const { stdout } = await run('/bin/bash', ['-c', src]);
   return stdout.split('\n').filter(Boolean).map(l => l.split('\t'));
 }
+// The first three columns (name=port, app, ext) — the proxy columns have their own test.
+const appExt = rows => rows.map(r => r.slice(0, 3));
 const helper = async (port, ...args) => {
   try { const { stdout } = await run(process.execPath, [HELPER, String(port), ...args]); return JSON.parse(stdout); }
   catch (e) { if (e.stdout) return JSON.parse(e.stdout); throw e; }
 };
 
 test('config: name=port with optional app= and ext= in any order', async () => {
-  const rows = await confLines([
+  const rows = appExt(await confLines([
     '# comment',
     'agent=9333',
     'work=9334 app=Google Chrome Beta',
@@ -43,7 +45,7 @@ test('config: name=port with optional app= and ext= in any order', async () => {
     '  d = 9338  ',
     'bad line',
     '',
-  ].join('\n'));
+  ].join('\n')));
   assert.deepEqual(rows, [
     ['agent=9333', '', ''],
     ['work=9334', 'Google Chrome Beta', ''],
@@ -55,7 +57,20 @@ test('config: name=port with optional app= and ext= in any order', async () => {
 });
 
 test('config: no file → built-in agent=9333 without app and ext', async () => {
-  assert.deepEqual(await confLines(null), [['agent=9333', '', '']]);
+  assert.deepEqual(await confLines(null), [['agent=9333', '', '', '', '', '']]);
+});
+
+test('config: proxy=, expect= and pending= per profile, in any order next to app= and ext=', async () => {
+  const rows = await confLines([
+    'anon=9335 app=Google Chrome Beta ext=/x/ubol proxy=pl-res expect=PL pending=direct',
+    'k=9336 pending=direct proxy=pool app=Google Chrome',
+    'plain=9337 app=Google Chrome Beta',
+  ].join('\n'));
+  assert.deepEqual(rows, [
+    ['anon=9335', 'Google Chrome Beta', '/x/ubol', 'pl-res', 'PL', 'direct'],
+    ['k=9336', 'Google Chrome', '', 'pool', '', 'direct'],
+    ['plain=9337', 'Google Chrome Beta', '', '', '', ''],
+  ]);
 });
 
 test('profiles command ignores app= and ext=', async () => {
@@ -154,7 +169,7 @@ test('status: JSON carries profile fields and "ext" from the config line', async
 test('start line has --no-startup-window and no foreground flags', () => {
   const src = fs.readFileSync(SH, 'utf8');
   const start = src.slice(src.indexOf('start() {'), src.indexOf('case "$CMD" in\n  ensure)'));
-  assert.match(start, /\$OPEN -g -n -a "\$APP" --args/);
+  assert.match(start, /\$OPEN -g -n (\$\{envs\[@\]\+"\$\{envs\[@\]\}"\} )?-a "\$APP" --args/);
   assert.match(start, /--no-startup-window/);
   assert.doesNotMatch(start, /activate|osascript/);
 });

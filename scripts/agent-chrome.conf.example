@@ -10,3 +10,7 @@
 agent=9333
 # work=9334 app=Google Chrome Beta
 # work=9334 app=Google Chrome Beta ext=/Users/you/.local/share/jadlis-browser/ubol/current
+# Own proxy per profile (optional): upstream in ~/.config/jadlis/proxies/<name>.url (mode 600), `{session}` in the URL gives
+# this profile its own sticky IP from a residential pool; expect= refuses a start outside that country; pending=direct
+# starts on the home IP while the .url file does not exist yet. Needs gost (brew install gost).
+# anon=9335 app=Google Chrome Beta proxy=pl-res expect=PL pending=direct
