@@ -2,6 +2,17 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [4.1.0] — 2026-11-21 — свой прокси на профиль, ключи в 1Password по категории / proxy per profile, keys into 1Password by category
+
+### Для человека
+- Профиль агента может выходить в сеть через свой прокси: строка `имя=порт proxy=<имя>` в `agent-chrome.conf`, адрес прокси — в файле `~/.config/jadlis/proxies/<имя>.url` с правами 600. `expect=PL` не даёт профилю стартовать из другой страны, а старт на твоём домашнем адресе скрипт отклоняет. `pending=direct` разрешает старт без прокси, пока файла ещё нет. Нужен `gost` (`brew install gost`). Строки без `proxy=` работают как раньше.
+- Ключ API со страницы сервиса оператор сохраняет в 1Password отдельной записью категории API Credential, значение не попадает в аргументы команды. Для этого нужен jadlis-secrets 1.1.0 (`op-item.py`, `secret-relay.py receive --stdin`). Обновился — запусти `setup.mjs` ещё раз (или дождись `BROWSER_AUTO_SETUP`), чтобы пересобрать файл агента.
+
+### For agents
+- Added: `scripts/agent-chrome.sh` — optional ` proxy=<name>`, ` expect=<CC>`, ` pending=direct` on a profile line, in any order with `app=` / `ext=`. The upstream comes from `~/.config/jadlis/proxies/<name>.url` (mode 600, `http://` or `socks5://`, `{session}` → an 8-char id of the profile for a sticky residential IP); a local gost forwarder on `127.0.0.1:<port+10000>` carries the login, Chrome gets only `--proxy-server` to it, so a dead forwarder breaks pages instead of leaking the home IP. A start whose exit IP does not answer, equals the home IP or misses `expect=` is refused; `ensure` refuses a running Chrome without the proxy flag; Chrome starts with `TZ` of the exit IP. JSON adds `"proxy"`, `"proxy_state"` (`none|pending|missing|armed`). `agent-chrome.conf.example` shows the line; `tests/agent-chrome.test.mjs` covers the new columns.
+- Added: `skills/browser/SKILL.md` — «Server first, where a server profile exists»: when the operator's contract lists a server profile, every task starts there and falls back to the local profile only on `block`, `captcha`, `needs_device` or `server_down`.
+- Changed: `assets/browser-operator.md.template` «Out of a page» — the API Credential recipe `secret-relay.py receive --stdin -- ~/.claude/scripts/op-item.py create … --category "API Credential" --secret credential=stdin` replaces `op-agent.sh item edit <item> 'api key[password]={}'`.
+
 ## [4.0.0] — 2026-11-10 — Patchright MCP, реклама и баннеры cookies, запуск без фокуса / Patchright MCP, ads and cookie banners, no-focus start
 
 ### Для человека
